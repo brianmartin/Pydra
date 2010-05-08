@@ -70,7 +70,7 @@ setup(name='Pydra',
       url='http://pydra-project.osuosl.org',
       packages=packages,
       data_files=data_files,
-      requires = ['twisted','django','simplejson'],
+      requires = ['twisted','django','simplejson','pyopenssl'],
       provides = ['pydra','pydra.web'],
       license='GPLv3'
      )
