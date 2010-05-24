@@ -21,6 +21,10 @@ from pydra.cluster.tasks import Task, TaskContainer, ParallelTask
 from pydra.cluster.tasks.datasource.slicer import IterSlicer
 import time
 
+import logging
+logger = logging.getLogger('root')
+logger.setLevel(logging.DEBUG)
+
 from django import forms
 class TestTaskInput(forms.Form):
     """
@@ -118,9 +122,6 @@ class TestParallelTask(ParallelTask):
     """
     description = 'A demo task illustrating a Parallel task.  This task runs 5 TestTasks at the same time'
 
-    _data = None
-    _finished = None
-
     def __init__(self):
         ParallelTask.__init__(self)
         self.set_subtask(TestTask, 'subtask')
@@ -128,11 +129,13 @@ class TestParallelTask(ParallelTask):
         self._data = range(10)
         self._finished = []
 
+        logger.setLevel(logging.DEBUG)
+
     def work_unit_complete(self, data, results):
-        self.logger.info('[%s]   Adding results:%s' % (self.get_worker().worker_key, results))
+        logger.info('[%s]   Adding results:%s' % (self.get_worker().worker_key, results))
         self._finished.append(results)
 
     def work_complete(self):
-        self.logger.info('[%s] tabulating results!' % (self.get_worker().worker_key))
-        self.logger.info(self._finished)
+        logger.info('[%s] tabulating results!' % (self.get_worker().worker_key))
+        logger.info(self._finished)
         return self._finished
