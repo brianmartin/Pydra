@@ -48,6 +48,7 @@ class Master(ModuleManager):
         """
         self.modules = [
             AutoDiscoveryModule,
+            CloudProvisioningModule,
             NodeConnectionManager,
             TaskManager,
             TaskSyncServer,

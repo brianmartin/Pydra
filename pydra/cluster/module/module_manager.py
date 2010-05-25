@@ -34,7 +34,7 @@ class ModuleManager(object):
     modules.  It also removes the need for complicated dependency checking when
     loading modules.
 
-    IE.  Both the manual registration and autodiscovery can emit NODE_ADDED.
+    IE.  Both the manual registration and autodiscovery can emit NODE_CREATED.
     """
     
 
