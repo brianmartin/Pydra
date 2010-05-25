@@ -1,4 +1,5 @@
-"""
+{% extends "base.html" %}
+<!--
     Copyright 2009 Oregon State University
 
     This file is part of Pydra.
@@ -15,12 +16,10 @@
 
     You should have received a copy of the GNU General Public License
     along with Pydra.  If not, see <http://www.gnu.org/licenses/>.
-"""
+-->
+{% block content %}
 
-from pydra.cluster.master.auto_discovery import AutoDiscoveryModule as AutoDiscoveryModule
-from pydra.cluster.master.cloud_provisioning import CloudProvisioningModule as CloudProvisioningModule
-from pydra.cluster.master.node_connection_manager import NodeConnectionManager as NodeConnectionManager
-from pydra.cluster.master.node_manager import NodeManager as NodeManager
-from pydra.cluster.master.worker_connection_manager import WorkerConnectionManager as WorkerConnectionManager
-from pydra.cluster.master.scheduler import TaskScheduler as TaskScheduler
-
+{% for image in images %}
+<p>{{images}}</p>
+{% endfor %}
+{% endblock %}

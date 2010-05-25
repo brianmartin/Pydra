@@ -161,6 +161,17 @@ def discover(request):
     return render_to_response('discover.html', {'known_nodes': pydra_controller.list_known_nodes()})
 
 
+@user_passes_test(lambda u: u.has_perm('pydra.web.can_edit_nodes'))
+def cloud(request):
+    """
+    TODO: allow users to select service and number of nodes to provision from the cloud
+    NOW: lists available images on the user's amazon ec2 account.
+    """
+    global pydra_controller
+
+    return render_to_response('cloud.html', {'images':pydra_controller.list_images()})
+
+
 def node_status(request):
     """
     Retrieves Status of nodes

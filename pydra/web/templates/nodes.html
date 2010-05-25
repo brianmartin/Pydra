@@ -350,7 +350,8 @@
 {% block submenu %}
     {% if perms.pydra_server.can_edit_nodes %}
         <span class="menuitem"><a class="menuitem" href="{{SITE_ROOT}}/nodes/edit">Create Node</a></span>
-        <span class="menuitem lastmenuitem"><a class="menuitem" href="{{SITE_ROOT}}/nodes/discover/">Discover Nodes</a></span>
+        <span class="menuitem"><a class="menuitem" href="{{SITE_ROOT}}/nodes/discover/">Discover Nodes</a></span>
+        <span class="menuitem lastmenuitem"><a class="menuitem" href="{{SITE_ROOT}}/nodes/cloud/">Cloud Provisioning</a></span>
     {% endif %}
 {% endblock %}
 
