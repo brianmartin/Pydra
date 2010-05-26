@@ -41,19 +41,25 @@ class CloudProvisioningModule(Module):
     def __init__(self):
         self._interfaces = [
             self.list_images
+#            self.get_images
         ]
-        self.listeners = {'MANAGER_INIT':self.get_images}
+        self._listeners = {'MANAGER_INIT':self.get_images}
 
     def _register(self, manager):
         Module._register(self, manager)
-        self.images = list()
+        self.images = ["debug"] # = list()
 
     def get_images(self, callback=None):
+        logger.info("Retrieving image list")
+
         Driver = get_driver(Provider.EC2)
         conn = Driver(pydra_settings.EC2_ACCESS_ID, pydra_settings.EC2_SECRET_KEY)
-        return conn.list_images()
+        node_images = conn.list_images()
+        self.images = [image.id for image in node_images[:25]]
 
-    def list_images(self, page=1):
+        logger.info("Got image list")
+
+    def list_images(self):
         """
         Lists images available on EC2
         """

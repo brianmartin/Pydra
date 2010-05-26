@@ -169,7 +169,7 @@ def cloud(request):
     """
     global pydra_controller
 
-    return render_to_response('cloud.html', {'images':pydra_controller.images})
+    return render_to_response('cloud.html', {'images':pydra_controller.list_images()})
 
 
 def node_status(request):
