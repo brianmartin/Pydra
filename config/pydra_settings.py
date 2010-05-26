@@ -93,3 +93,13 @@ TASKS_SYNC_CACHE  = '%s/task_sync_cache' % RUNTIME_FILES_DIR
 
 # Automatically add nodes found with autodiscovery 
 MULTICAST_ALL = False 
+
+
+#
+# Cloud Provisioning 
+#
+
+# Amazon AWS EC2 access
+EC2_ACCESS_ID = ''
+EC2_SECRET_KEY = ''
+
