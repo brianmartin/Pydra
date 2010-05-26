@@ -16,8 +16,6 @@
     You should have received a copy of the GNU General Public License
     along with Pydra.  If not, see <http://www.gnu.org/licenses/>.
 """
-from django.core.paginator import Paginator, InvalidPage, EmptyPage
-
 from libcloud.types import Provider
 from libcloud.providers import get_driver
 
@@ -44,12 +42,16 @@ class CloudProvisioningModule(Module):
         self._interfaces = [
             self.list_images
         ]
+        self.listeners = {'MANAGER_INIT':self.get_images}
 
     def _register(self, manager):
         Module._register(self, manager)
+        self.images = list()
+
+    def get_images(self, callback=None):
         Driver = get_driver(Provider.EC2)
         conn = Driver(pydra_settings.EC2_ACCESS_ID, pydra_settings.EC2_SECRET_KEY)
-        self.images = conn.list_images()
+        return conn.list_images()
 
     def list_images(self, page=1):
         """
