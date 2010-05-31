@@ -88,7 +88,11 @@ class Node(models.Model):
 
             return  pub_key_obj
 
-
+class CloudNode(Node):
+    service_provider = models.CharField(max_length=255, null=True)
+    instance_size = models.CharField(max_length=255, null=True)
+    instance_image = models.CharField(max_length=255, null=True)
+    
 class TaskInstanceManager(models.Manager):
     """
     Custom manager overridden to supply pre-made queryset for queued and running
