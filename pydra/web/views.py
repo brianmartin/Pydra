@@ -149,6 +149,8 @@ def discover(request):
     from django import forms
     global pydra_controller
 
+    c = RequestContext(request, processors=[pydra_processor, settings_processor])
+
     if request.method == 'POST':
         reconnect = False
         for i in request.POST.keys():
@@ -158,18 +160,18 @@ def discover(request):
                 reconnect = True
         if reconnect:
             pydra_controller.connect()
-    return render_to_response('discover.html', {'known_nodes': pydra_controller.list_known_nodes()})
+    return render_to_response('discover.html', {'known_nodes': pydra_controller.list_known_nodes()}, context_instance=c)
 
 
 @user_passes_test(lambda u: u.has_perm('pydra.web.can_edit_nodes'))
-def cloud(request):
+def cloudnodes(request):
     """
     TODO: allow users to select service and number of nodes to provision from the cloud
-    NOW: lists available images on the user's amazon ec2 account.
+    NOW: lists available nodes on the user's amazon ec2 account.
     """
     global pydra_controller
 
-    return render_to_response('cloud.html', {'images':pydra_controller.list_images()})
+    return render_to_response('cloud.html', {'nodes':pydra_controller.list_nodes()})
 
 
 def node_status(request):
