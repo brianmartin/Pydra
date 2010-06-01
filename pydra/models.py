@@ -89,6 +89,7 @@ class Node(models.Model):
             return  pub_key_obj
 
 class CloudNode(Node):
+    name = models.CharField(max_length=255, null=True)
     service_provider = models.CharField(max_length=255, null=True)
     instance_size = models.CharField(max_length=255, null=True)
     instance_image = models.CharField(max_length=255, null=True)

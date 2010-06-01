@@ -27,6 +27,7 @@ import logging
 logger = logging.getLogger('root')
 
 import time
+from threading import Thread
 
 class CloudProvisioningModule(Module):
 
@@ -36,11 +37,12 @@ class CloudProvisioningModule(Module):
         'NODE_EDITED'
     ]
 
-    _shared = []
+#    _shared = []
 
     def __init__(self):
         self._interfaces = [
-            self.list_nodes
+            self.list_nodes,
+            self.request_node
         ]
         self._listeners = {'MANAGER_INIT':self.cloud}
 
@@ -72,37 +74,49 @@ class CloudProvisioningModule(Module):
             except:
                 logger.info("Amazon EC2 security group already created.")
 
-        def create_node():
-            logger.info("Creating EC2 node.")
-            node_libcloud = self.conn.create_node(name='Pydra', image=self.image, size=self.size, ex_securitygroup("Pydra"))
-            logger.info("Node created, name: " + node_libcloud.name)
-            while [node for node in self.conn.list_nodes() if node.name==node_libcloud.name][0].public_ip==['']:
-                time.sleep(15)
-                logger.info("Waiting for hostname.")
-            logger.info("Got hostname..")
-            logger.info("Adding cloud node..")
-            #bug here - change array index 
-            node = Node.objects.create(host=self.conn.list_nodes()[0].public_ip[0], port=pydra_settings.PORT)
-            self.emit('NODE_CREATED', node)
-
         def add_booted_nodes():
-            for node in self.conn.list_nodes():
-                if node.public_ip==['']:
+            for node_libcloud in self.conn.list_nodes():
+                #if already added or still booting: don't add
+                if CloudNode.objects.get(name=node.name) or node.public_ip==['']:
                     pass
                 else:
-                    cloudnode = CloudNode.objects.create(host=node.public_ip[0], port=pydra_settings.PORT, service_provider='EC2')
-                    self.emit('NODE_CREATED', cloudnode)
+                    self.create_node(node_libcloud)
+
+        def get_info():
+            Thread(target=create_security_group()).start()
+            Thread(target=get_images()).start()
+            Thread(target=get_sizes()).start()
 
         connect_ec2()
-#        create_security_group()
-#        get_images()
-#        get_sizes()
-#        create_node()
-        add_booted_nodes()
+        get_info()
+#        self.request_node()
+#        add_booted_nodes()
+
+    def request_node(self):
+        Thread(target=self._request_node).start()
+
+    def _request_node(self):
+        logger.info("Creating EC2 node.")
+        node_libcloud = self.conn.create_node(name='Pydra', image=self.image, size=self.size, ex_securitygroup="Pydra")
+        logger.info("Node created, name: " + node_libcloud.name)
+        logger.info("Waiting for hostname.")
+        while node_libcloud.public_ip==['']:
+            time.sleep(15)
+            node_libcloud = [node for node in self.conn.list_nodes() if node.name==node_libcloud.name][0]
+        logger.info("Got hostname..")
+        
+        create_node(node_libcloud)
+
+    def create_node(self, node_libcloud):
+        logger.info("Adding cloud node..")
+        node = CloudNode.objects.create(host=node_libcloud.public_ip[0], port=pydra_settings.PORT, ex_securitygroup="Pydra")
+        self.emit('NODE_CREATED', node)
 
     def list_nodes(self):
         """
-        Lists nodes available on EC2
+        Lists nodes available on EC2 (not necessarily added as pydra nodes)
         """
         #return list of id's not node objects
         return [node.public_ip for node in self.conn.list_nodes() if node.name=='Pydra']
+
+    
