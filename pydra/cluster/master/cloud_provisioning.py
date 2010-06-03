@@ -34,15 +34,17 @@ class CloudProvisioningModule(Module):
     _signals = [
         'NODE_CREATED',
         'NODE_DELETED',
-        'NODE_EDITED'
+        'NODE_EDITED',
+        'NODE_UPDATED'
     ]
 
-#    _shared = []
+    _shared = []
 
     def __init__(self):
         self._interfaces = [
-            self.list_nodes,
-            self.request_node
+            self.list_cloudnodes,
+            self.cloudnode_delete,
+            self.cloudnode_edit
         ]
         self._listeners = {'MANAGER_INIT':self.cloud}
 
@@ -58,13 +60,15 @@ class CloudProvisioningModule(Module):
 
         def get_images():
             logger.info("Retrieving image list")
-            node_images = self.conn.list_images()
-            self.image = [image for image in node_images if image.id=="ami-b17c95d8"][0]
-            logger.info("Got image list, and found Pydra AMI.")
+            try:
+                node_images = self.conn.list_images()
+                self.image = [image for image in node_images if image.id=="ami-b17c95d8"][0]
+                logger.info("Got image list, and found Pydra AMI.")
+            except:
+                logger.warning("Image list not recieved or Pydra AMI not found.")
 
         def get_sizes():
             self.sizes = self.conn.list_sizes()
-            self.size = self.sizes[2]
 
         def create_security_group():
             try:
@@ -89,14 +93,29 @@ class CloudProvisioningModule(Module):
 
         connect_ec2()
         get_info()
-#        self.request_node()
-#        add_booted_nodes()
 
-    def request_node(self):
-        Thread(target=self._request_node).start()
 
-    def _request_node(self):
+    def cloudnode_request(self, node_pydra):
+        """
+        Thread wrapper for _request_cloudnode
+        """
+        logger.info("hello from cloudnode_request!")
+        # hardcoded -- you're so BAAAD!
+        self.size = self.sizes[2]
+        # Change this!
+
+        logger.info(self.size)
+        Thread(target=self._cloudnode_request, args=(node_pydra,)).start()
+
+    def _cloudnode_request(self, node_pydra):
+        """
+        Request a cloud instance be booted.  The instance is automatically added as a pydra node after the hostname is received.
+        """
         logger.info("Creating EC2 node.")
+        #wait for image and size options to be retrieved
+        if not self.image or not self.size:
+            time.sleep(5)
+            logger.info("Waiting on size or image.")
         node_libcloud = self.conn.create_node(name='Pydra', image=self.image, size=self.size, ex_securitygroup="Pydra")
         logger.info("Node created, name: " + node_libcloud.name)
         logger.info("Waiting for hostname.")
@@ -105,18 +124,72 @@ class CloudProvisioningModule(Module):
             node_libcloud = [node for node in self.conn.list_nodes() if node.name==node_libcloud.name][0]
         logger.info("Got hostname..")
         
-        create_node(node_libcloud)
+        self.cloudnode_create(node_libcloud, node_pydra)
 
-    def create_node(self, node_libcloud):
-        logger.info("Adding cloud node..")
-        node = CloudNode.objects.create(host=node_libcloud.public_ip[0], port=pydra_settings.PORT, ex_securitygroup="Pydra")
-        self.emit('NODE_CREATED', node)
+    def cloudnode_create(self, node_libcloud, node_pydra):
+        """
+        Update booted cloud instance's information.
+        """
+        logger.info("Updating cloud node..")
+        update_values = {'id':node_pydra.id, 'host':node_libcloud.public_ip[0], 'security_group':"Pydra"}
+        self.cloudnode_edit(self, update_values)
+        
 
-    def list_nodes(self):
+    def cloudnode_delete(self, id):
+        """
+        deletes a cloudnode with the id passed in.
+        """
+        Thread(target=self._cloudnode_delete).start()
+        node = CloudNode.objects.get(id=id)
+        node.deleted = True
+        node.save()
+        self.emit('NODE_DELETED', node)
+
+    def _cloudnode_delete(self, node_pydra):
+        """
+        destroys the cloud instance of the node passed in.
+        """
+        try:
+            node_libcloud = [node for node in self.conn.list_nodes() if node.name==node_pydra.name][0]
+            self.conn.destroy_node(node_libcloud)
+            logger.info("CloudNode instance " + node_libcloud.name + " terminated.")
+        except:
+            logger.warning("CloudNode instance could not be terminated.  Instance must be terminated manually.")
+
+
+    def cloudnode_edit(self, values):
+        """
+        Updates or Creates a cloudnode with the values passed in.  If an id field
+        is present it will be update the existing cloudnode.  Otherwise it will
+        create a new cloudnode
+        """
+        logger.info("hello from cloudnode_edit!!")
+        logger.info(values)
+        if values.has_key('id'):
+            node = CloudNode.objects.get(pk=values['id'])
+            updated = values['port'] == node.port
+            new = False
+        else:
+            node = CloudNode()
+            new = True
+
+        for k,v in values.items():
+            node.__dict__[k] = v
+        node.save()
+
+
+        logger.info("hello before request, true?: " + str(new))
+        if new:
+            node.host = "booting"
+            node.save()
+            self.cloudnode_request(node)
+        else:            
+            self.emit('NODE_UPDATED', node)
+
+        
+    def list_cloudnodes(self):
         """
         Lists nodes available on EC2 (not necessarily added as pydra nodes)
         """
         #return list of id's not node objects
         return [node.public_ip for node in self.conn.list_nodes() if node.name=='Pydra']
-
-    

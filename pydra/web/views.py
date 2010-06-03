@@ -31,6 +31,7 @@ import pydra_web_settings as settings
 from pydra.cluster.controller import ControllerException
 from pydra.cluster.controller.web.controller import WebController
 from pydra.forms import NodeForm
+from pydra.forms import CloudNodeForm
 from pydra.models import Node, TaskInstance
 from pydra.config import load_settings
 
@@ -171,7 +172,77 @@ def cloudnodes(request):
     """
     global pydra_controller
 
-    return render_to_response('cloud.html', {'nodes':pydra_controller.list_nodes()})
+    return render_to_response('cloud.html', {'nodes':pydra_controller.list_cloudnodes()})
+
+def cloudnode_status(request):
+    """
+    Retrieves Status of cloudnodes
+    """
+    c = RequestContext(request, {
+        'MEDIA_URL': settings.MEDIA_URL
+    }, [pydra_processor])
+
+    try:
+        response = simplejson.dumps(pydra_controller.cloudnode_status())
+    except ControllerException, e:
+        response = e.code
+
+    return HttpResponse(response, mimetype='application/javascript')
+
+@user_passes_test(lambda u: u.has_perm('pydra.web.can_edit_nodes'))
+def cloudnode_delete(request, id=None):
+    """
+    Handler for deleting cloudnodes
+    """
+    c = RequestContext(request, processors=[pydra_processor, settings_processor])
+
+    if id: 
+        pydra_controller.cloudnode_delete(id)
+        return HttpResponseRedirect('%s/nodes' % settings.SITE_ROOT) # Redirect after POST
+
+    else:
+        if id:
+            node = pydra_controller.node_detail(id)
+            form = CloudNodeForm(node)
+        else:
+            # An unbound form
+            form = CloudNodeForm() 
+
+    return render_to_response('cloud_edit.html', {
+        'form': form,
+        'id':id,
+    }, context_instance=c)
+
+
+@user_passes_test(lambda u: u.has_perm('pydra.web.can_edit_nodes'))
+def cloudnode_edit(request, id=None):
+    """
+    Handler for creating and editing cloudnodes
+    """
+    c = RequestContext(request, processors=[pydra_processor, settings_processor])
+
+    if request.method == 'POST': 
+        form = CloudNodeForm(request.POST)
+
+        if form.is_valid():
+            if id:
+                form.cleaned_data['id'] = id
+            pydra_controller.cloudnode_edit(form.cleaned_data)
+
+            return HttpResponseRedirect('%s/nodes' % settings.SITE_ROOT) # Redirect after POST
+
+    else:
+        if id:
+            node = pydra_controller.node_detail(id)
+            form = CloudNodeForm(node)
+        else:
+            # An unbound form
+            form = CloudNodeForm() 
+
+    return render_to_response('cloud_edit.html', {
+        'form': form,
+        'id':id,
+    }, context_instance=c)
 
 
 def node_status(request):

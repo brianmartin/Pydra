@@ -93,6 +93,7 @@ class CloudNode(Node):
     service_provider = models.CharField(max_length=255, null=True)
     instance_size = models.CharField(max_length=255, null=True)
     instance_image = models.CharField(max_length=255, null=True)
+    security_group = models.CharField(max_length=255, null=True)
     
 class TaskInstanceManager(models.Manager):
     """
