@@ -131,9 +131,11 @@ class CloudProvisioningModule(Module):
         Update booted cloud instance's information.
         """
         logger.info("Updating cloud node..")
-        update_values = {'id':node_pydra.id, 'host':node_libcloud.public_ip[0], 'security_group':"Pydra"}
-        self.cloudnode_edit(self, update_values)
-        
+        update_values = {'id': str(node_pydra.id), 'host': str(node_libcloud.public_ip[0]), 'port': str(pydra_settings.PORT), 'security_group': "Pydra"}
+        try:
+            self.cloudnode_edit(update_values)
+        except Exception, e:
+            logger.error("CloudNode hostname could not be updated.")
 
     def cloudnode_delete(self, id):
         """
@@ -163,8 +165,6 @@ class CloudProvisioningModule(Module):
         is present it will be update the existing cloudnode.  Otherwise it will
         create a new cloudnode
         """
-        logger.info("hello from cloudnode_edit!!")
-        logger.info(values)
         if values.has_key('id'):
             node = CloudNode.objects.get(pk=values['id'])
             updated = values['port'] == node.port
@@ -177,8 +177,6 @@ class CloudProvisioningModule(Module):
             node.__dict__[k] = v
         node.save()
 
-
-        logger.info("hello before request, true?: " + str(new))
         if new:
             node.host = "booting"
             node.save()
