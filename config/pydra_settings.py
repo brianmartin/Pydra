@@ -99,7 +99,13 @@ MULTICAST_ALL = False
 # Cloud Provisioning 
 #
 
-# Amazon AWS EC2 access
-EC2_ACCESS_ID = ''
-EC2_SECRET_KEY = ''
+# Amazon AWS
+#EC2_ACCESS_ID = ''
+#EC2_SECRET_KEY = ''
+#EC2_IMAGE_ID = ''
+
+#Rackspace Cloud (Mosso)
+#RACKSPACE_USER = ''
+#RACKSPACE_API = ''
+#RACKSPACE_IMAGE_ID = ''
 
