@@ -26,7 +26,7 @@ import pydra_settings
 import logging
 logger = logging.getLogger('root')
 
-import time
+from time import sleep
 from threading import Thread
 
 class CloudProvisioningModule(Module):
@@ -53,22 +53,47 @@ class CloudProvisioningModule(Module):
         self.images = list()
 
     def cloud(self, callback=None):
+
+        self.conn = {}
+        self.image = {}
+        self.sizes = {}
         
+        def connect_all():
+            Thread(target=connect_ec2).start()
+##            Thread(target=connect_rackspace).start()
+            
         def connect_ec2():
-            Driver = get_driver(Provider.EC2)
-            self.conn = Driver(pydra_settings.EC2_ACCESS_ID, pydra_settings.EC2_SECRET_KEY)
-
-        def get_images():
-            logger.info("Retrieving image list")
+            #check for credentials in pydra_settings.
             try:
-                node_images = self.conn.list_images()
-                self.image = [image for image in node_images if image.id=="ami-b17c95d8"][0]
-                logger.info("Got image list, and found Pydra AMI.")
+                pydra_settings.EC2_ACCESS_ID, pydra_settings.EC2_SECRET_KEY
             except:
-                logger.warning("Image list not recieved or Pydra AMI not found.")
+                #No credentials, so don't bother trying to connect
+                return
 
-        def get_sizes():
-            self.sizes = self.conn.list_sizes()
+            #attempt connection
+            try:
+                Driver = get_driver(Provider.EC2)
+                self.conn['EC2'] = Driver(pydra_settings.EC2_ACCESS_ID, pydra_settings.EC2_SECRET_KEY)
+            except:
+                logger.error("Unable to connect to EC2. (Perhaps wrong credentials?)")
+                return
+
+            #gather information
+            get_images('EC2')
+            get_sizes('EC2')
+                
+##        def connect_rackspace():
+
+        def get_images(service):
+            logger.info("Retrieving " + service + " image list...")
+            try:
+                self.image[service] = filter(lambda x: x.id == eval('pydra_settings.' + service + '_IMAGE_ID'), self.conn[service].list_images())[0]
+                logger.info("Got " + service + " image list, and found Pydra image.")
+            except Exception, e:
+                logger.warning(service + " image list not received or Pydra image not found.")
+
+        def get_sizes(service):
+            self.sizes[service] = self.conn[service].list_sizes()
 
         def create_security_group():
             try:
@@ -78,30 +103,25 @@ class CloudProvisioningModule(Module):
             except:
                 logger.info("Amazon EC2 security group already created.")
 
-        def add_booted_nodes():
-            for node_libcloud in self.conn.list_nodes():
+        def add_booted_nodes(service):
+            for node_libcloud in self.conn[service].list_nodes():
                 #if already added or still booting: don't add
                 if CloudNode.objects.get(name=node.name) or node.public_ip==['']:
                     pass
                 else:
                     self.create_node(node_libcloud)
 
-        def get_info():
-            Thread(target=create_security_group()).start()
-            Thread(target=get_images()).start()
-            Thread(target=get_sizes()).start()
-
-        connect_ec2()
-        get_info()
+        connect_all()
 
 
     def cloudnode_request(self, node_pydra):
         """
         Thread wrapper for _request_cloudnode
         """
-        logger.info("hello from cloudnode_request!")
         # hardcoded -- you're so BAAAD!
-        self.size = self.sizes[2]
+        # only works for EC2
+        # add field to cloudnode model
+        self.size = self.sizes[str(node_pydra.service_provider)][2]
         # Change this!
 
         logger.info(self.size)
@@ -111,17 +131,18 @@ class CloudProvisioningModule(Module):
         """
         Request a cloud instance be booted.  The instance is automatically added as a pydra node after the hostname is received.
         """
-        logger.info("Creating EC2 node.")
+        service = node_pydra.service_provider
+        logger.info("Creating " + service  + " node.")
         #wait for image and size options to be retrieved
-        if not self.image or not self.size:
-            time.sleep(5)
+        if not self.image[service] or not self.size:
+            sleep(5)
             logger.info("Waiting on size or image.")
-        node_libcloud = self.conn.create_node(name='Pydra', image=self.image, size=self.size, ex_securitygroup="Pydra")
+        node_libcloud = self.conn[service].create_node(name='Pydra', image=self.image[service], size=self.size, ex_securitygroup="Pydra")
         logger.info("Node created, name: " + node_libcloud.name)
         logger.info("Waiting for hostname.")
         while node_libcloud.public_ip==['']:
-            time.sleep(15)
-            node_libcloud = [node for node in self.conn.list_nodes() if node.name==node_libcloud.name][0]
+            sleep(15)
+            node_libcloud = [node for node in self.conn[service].list_nodes() if node.name==node_libcloud.name][0]
         logger.info("Got hostname..")
         
         self.cloudnode_create(node_libcloud, node_pydra)
@@ -151,9 +172,10 @@ class CloudProvisioningModule(Module):
         """
         destroys the cloud instance of the node passed in.
         """
+        service = pydra_node.service_provider
         try:
-            node_libcloud = [node for node in self.conn.list_nodes() if node.name==node_pydra.name][0]
-            self.conn.destroy_node(node_libcloud)
+            node_libcloud = [node for node in self.conn[service].list_nodes() if node.name==node_pydra.name][0]
+            self.conn[service].destroy_node(node_libcloud)
             logger.info("CloudNode instance " + node_libcloud.name + " terminated.")
         except:
             logger.warning("CloudNode instance could not be terminated.  Instance must be terminated manually.")
@@ -161,9 +183,9 @@ class CloudProvisioningModule(Module):
 
     def cloudnode_edit(self, values):
         """
-        Updates or Creates a cloudnode with the values passed in.  If an id field
-        is present it will be update the existing cloudnode.  Otherwise it will
-        create a new cloudnode
+        Updates or creates a CloudNode with the values passed in.  If an id field
+        is present it will be update the existing CloudNode.  Otherwise it will
+        create a new CloudNode.
         """
         if values.has_key('id'):
             node = CloudNode.objects.get(pk=values['id'])
@@ -178,7 +200,7 @@ class CloudProvisioningModule(Module):
         node.save()
 
         if new:
-            node.host = "booting"
+            node.host = "Booting..."
             node.save()
             self.cloudnode_request(node)
         else:            
@@ -187,7 +209,10 @@ class CloudProvisioningModule(Module):
         
     def list_cloudnodes(self):
         """
-        Lists nodes available on EC2 (not necessarily added as pydra nodes)
+        Lists nodes available from all service providers (not necessarily added as pydra nodes)
         """
-        #return list of id's not node objects
-        return [node.public_ip for node in self.conn.list_nodes() if node.name=='Pydra']
+        #return list of public ip's not node objects
+        nodes = []
+        for k in self.conn.keys():
+            nodes += [node.public_ip for node in self.conn[k].list_nodes() if node.name=='Pydra']
+        return nodes
