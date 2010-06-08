@@ -54,37 +54,46 @@ class CloudProvisioningModule(Module):
 
     def cloud(self, callback=None):
 
+        #define credential names:
+        self.creds = {'EC2': ['EC2_ACCESS_ID', 'EC2_SECRET_KEY'], 'RACKSPACE': ['RACKSPACE_USER', 'RACKSPACE_API']}
         self.conn = {}
         self.image = {}
         self.sizes = {}
         
         def connect_all():
-            Thread(target=connect_ec2).start()
-##            Thread(target=connect_rackspace).start()
+            """
+            Connect to all services for which credentials are defined.
+            """
+            for service in self.creds.keys():
+                Thread(target=connect(service)).start()
             
-        def connect_ec2():
-            #check for credentials in pydra_settings.
-            try:
-                pydra_settings.EC2_ACCESS_ID, pydra_settings.EC2_SECRET_KEY
-            except:
-                #No credentials, so don't bother trying to connect
-                return
+        def connect(service):
+            """
+            Connect to service and gather available instance images and sizes.
+            """
+            if hasattr(pydra_settings, self.creds[service][0]) and \
+               hasattr(pydra_settings, self.creds[service][1]) and \
+               hasattr(pydra_settings, self.creds[service][0]) != '' and \
+               hasattr(pydra_settings, self.creds[service][1]) != '':
 
-            #attempt connection
-            try:
-                Driver = get_driver(Provider.EC2)
-                self.conn['EC2'] = Driver(pydra_settings.EC2_ACCESS_ID, pydra_settings.EC2_SECRET_KEY)
-            except:
-                logger.error("Unable to connect to EC2. (Perhaps wrong credentials?)")
-                return
+                #attempt connection
+                try:
+                    Driver = get_driver(eval('Provider.' + service))
+                    self.conn[service] = Driver(eval('pydra_settings.' + self.creds[service][0]), \
+                                                eval('pydra_settings.'  + self.creds[service][1]))
+                except:
+                    logger.error("Unable to connect to " + service + ". (Perhaps wrong credentials?)")
+                    return
 
-            #gather information
-            get_images('EC2')
-            get_sizes('EC2')
+                #gather info
+                get_images(service)
+                get_sizes(service)
+
                 
-##        def connect_rackspace():
-
         def get_images(service):
+            """
+            Store image list from specified service.
+            """
             logger.info("Retrieving " + service + " image list...")
             try:
                 self.image[service] = filter(lambda x: x.id == eval('pydra_settings.' + service + '_IMAGE_ID'), self.conn[service].list_images())[0]
@@ -93,9 +102,16 @@ class CloudProvisioningModule(Module):
                 logger.warning(service + " image list not received or Pydra image not found.")
 
         def get_sizes(service):
+            """
+            Store list of instance sizes available from specified service.
+            """
             self.sizes[service] = self.conn[service].list_sizes()
 
         def create_security_group():
+            """
+            Check for the Pydra EC2 security group.
+            This policy is entirely permissive as this is the only way to specify using libcloud.
+            """
             try:
                 self.conn.ex_create_security_group("Pydra", "Programatic creation of permissive security group")
                 self.conn.ex_authorize_security_group_permissive("Pydra")
@@ -104,6 +120,10 @@ class CloudProvisioningModule(Module):
                 logger.info("Amazon EC2 security group already created.")
 
         def add_booted_nodes(service):
+            """
+            Add available instances that have already been booted to the Pydra db.
+            This is useful if the Master is restarted.
+            """
             for node_libcloud in self.conn[service].list_nodes():
                 #if already added or still booting: don't add
                 if CloudNode.objects.get(name=node.name) or node.public_ip==['']:
@@ -118,7 +138,6 @@ class CloudProvisioningModule(Module):
         """
         Thread wrapper for _request_cloudnode
         """
-        # hardcoded -- you're so BAAAD!
         # only works for EC2
         # add field to cloudnode model
         self.size = self.sizes[str(node_pydra.service_provider)][2]
