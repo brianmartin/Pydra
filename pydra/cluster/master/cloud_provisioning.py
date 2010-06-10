@@ -59,9 +59,9 @@ class CloudProvisioningModule(Module):
         #define credential names (secure, host, and port may also be keys here):
         self.crednames = {'EC2': {'id': 'EC2_ACCESS_ID', 'secret': 'EC2_SECRET_KEY'},
                       'RACKSPACE': {'id': 'RACKSPACE_USER', 'secret': 'RACKSPACE_API'},
-                      'EUCALYPTUS': {'id': 'EUCALYPTUS_ACCESS_ID', 'key':'EUCALYPTUS_SECRET_KEY', 'host': 'EUCALYPTUS_HOST'},
-                      'SLICEHOST': {'id': 'SLICEHOST_USER', 'key': 'SLICEHOST_SECRET_KEY'},
-                      'LINODE': {'id': 'LINODE_USER', 'key': 'LINODE_SECRET_KEY'},
+                      'EUCALYPTUS': {'id': 'EUCALYPTUS_ACCESS_ID', 'secret':'EUCALYPTUS_SECRET_KEY', 'host': 'EUCALYPTUS_HOST'},
+                      'SLICEHOST': {'id': 'SLICEHOST_USER', 'secret': 'SLICEHOST_SECRET_KEY'},
+                      'LINODE': {'id': 'LINODE_USER', 'secret': 'LINODE_SECRET_KEY'},
                       }
         self.creds = {}
         self.conn = {}
