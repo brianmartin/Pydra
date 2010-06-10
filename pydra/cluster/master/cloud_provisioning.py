@@ -50,12 +50,20 @@ class CloudProvisioningModule(Module):
 
     def _register(self, manager):
         Module._register(self, manager)
-        self.images = list()
 
     def cloud(self, callback=None):
-
-        #define credential names:
-        self.creds = {'EC2': ['EC2_ACCESS_ID', 'EC2_SECRET_KEY'], 'RACKSPACE': ['RACKSPACE_USER', 'RACKSPACE_API']}
+        """
+        Initialize and connect to services for which credentials are provided in pydra_settings.
+        """
+        
+        #define credential names (secure, host, and port may also be keys here):
+        self.crednames = {'EC2': {'id': 'EC2_ACCESS_ID', 'secret': 'EC2_SECRET_KEY'},
+                      'RACKSPACE': {'id': 'RACKSPACE_USER', 'secret': 'RACKSPACE_API'},
+                      'EUCALYPTUS': {'id': 'EUCALYPTUS_ACCESS_ID', 'key':'EUCALYPTUS_SECRET_KEY', 'host': 'EUCALYPTUS_HOST'},
+                      'SLICEHOST': {'id': 'SLICEHOST_USER', 'key': 'SLICEHOST_SECRET_KEY'},
+                      'LINODE': {'id': 'LINODE_USER', 'key': 'LINODE_SECRET_KEY'},
+                      }
+        self.creds = {}
         self.conn = {}
         self.image = {}
         self.sizes = {}
@@ -64,31 +72,35 @@ class CloudProvisioningModule(Module):
             """
             Connect to all services for which credentials are defined.
             """
+            verify_creds()
             for service in self.creds.keys():
                 Thread(target=connect(service)).start()
-            
+
+        def verify_creds():
+            """
+            Read in all credentials that are defined in pydra_settings and are not empty.
+            """
+            for service in self.crednames.keys():
+                if all(map(lambda x: hasattr(pydra_settings, x) and eval('pydra_settings.' + x) != '', self.crednames[service].values())):
+                        self.creds[service] = [eval('pydra_settings.' + self.crednames[service]['id']), \
+                                                 dict([(k, eval('pydra_settings.' + v)) for k,v in self.crednames[service].iteritems() if k != 'id'])]
+
         def connect(service):
             """
-            Connect to service and gather available instance images and sizes.
+            Connect to service and gather available instance images and sizes (if credentials are defined).
             """
-            if hasattr(pydra_settings, self.creds[service][0]) and \
-               hasattr(pydra_settings, self.creds[service][1]) and \
-               hasattr(pydra_settings, self.creds[service][0]) != '' and \
-               hasattr(pydra_settings, self.creds[service][1]) != '':
+            #attempt connection
+            try:
+                Driver = get_driver(eval('Provider.' + service))
+                self.conn[service] = Driver(self.creds[service][0], **self.creds[service][1])
+            except:
+                logger.error("Unable to connect to " + service + ". (Perhaps wrong credentials?)")
+                return
 
-                #attempt connection
-                try:
-                    Driver = get_driver(eval('Provider.' + service))
-                    self.conn[service] = Driver(eval('pydra_settings.' + self.creds[service][0]), \
-                                                eval('pydra_settings.'  + self.creds[service][1]))
-                except:
-                    logger.error("Unable to connect to " + service + ". (Perhaps wrong credentials?)")
-                    return
-
-                #gather info
-                get_images(service)
-                get_sizes(service)
-
+            #gather info
+            add_booted_nodes(service)
+            get_images(service)
+            get_sizes(service)
                 
         def get_images(service):
             """
@@ -113,7 +125,7 @@ class CloudProvisioningModule(Module):
             This policy is entirely permissive as this is the only way to specify using libcloud.
             """
             try:
-                self.conn.ex_create_security_group("Pydra", "Programatic creation of permissive security group")
+                self.conn.ex_create_security_group("Pydra", "Permissive security group for Pydra cloud provisioning.")
                 self.conn.ex_authorize_security_group_permissive("Pydra")
                 logger.info("Amazon EC2 security group created.")
             except:
@@ -132,7 +144,6 @@ class CloudProvisioningModule(Module):
                     self.create_node(node_libcloud)
 
         connect_all()
-
 
     def cloudnode_request(self, node_pydra):
         """
@@ -199,7 +210,6 @@ class CloudProvisioningModule(Module):
         except:
             logger.warning("CloudNode instance could not be terminated.  Instance must be terminated manually.")
 
-
     def cloudnode_edit(self, values):
         """
         Updates or creates a CloudNode with the values passed in.  If an id field
@@ -224,7 +234,6 @@ class CloudProvisioningModule(Module):
             self.cloudnode_request(node)
         else:            
             self.emit('NODE_UPDATED', node)
-
         
     def list_cloudnodes(self):
         """
@@ -232,6 +241,6 @@ class CloudProvisioningModule(Module):
         """
         #return list of public ip's not node objects
         nodes = []
-        for k in self.conn.keys():
-            nodes += [node.public_ip for node in self.conn[k].list_nodes() if node.name=='Pydra']
+        for v in self.conn.values():
+            nodes += [node.public_ip for node in v.list_nodes() if node.name=='Pydra']
         return nodes
