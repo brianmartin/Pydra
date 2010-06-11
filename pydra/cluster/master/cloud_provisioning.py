@@ -35,16 +35,17 @@ class CloudProvisioningModule(Module):
         'NODE_CREATED',
         'NODE_DELETED',
         'NODE_EDITED',
-        'NODE_UPDATED'
+        'NODE_UPDATED',
     ]
 
     _shared = []
 
     def __init__(self):
         self._interfaces = [
-            self.list_cloudnodes,
+            self.cloudnode_list,
             self.cloudnode_delete,
-            self.cloudnode_edit
+            self.cloudnode_edit,
+            self.cloudnode_status,
         ]
         self._listeners = {'MANAGER_INIT':self.cloud}
 
@@ -55,11 +56,11 @@ class CloudProvisioningModule(Module):
         """
         Initialize and connect to services for which credentials are provided in pydra_settings.
         """
-        
         #define credential names (secure, host, and port may also be keys here):
+        #other libcloud drivers: GOGRID, VPSNET, VCLOUD, RIMUHOSTING, ECP, IBM, OPENNEBULA, DREAMHOST
         self.crednames = {'EC2': {'id': 'EC2_ACCESS_ID', 'secret': 'EC2_SECRET_KEY'},
-                      'RACKSPACE': {'id': 'RACKSPACE_USER', 'secret': 'RACKSPACE_API'},
                       'EUCALYPTUS': {'id': 'EUCALYPTUS_ACCESS_ID', 'secret':'EUCALYPTUS_SECRET_KEY', 'host': 'EUCALYPTUS_HOST'},
+                      'RACKSPACE': {'id': 'RACKSPACE_USER', 'secret': 'RACKSPACE_API'},    
                       'SLICEHOST': {'id': 'SLICEHOST_USER', 'secret': 'SLICEHOST_SECRET_KEY'},
                       'LINODE': {'id': 'LINODE_USER', 'secret': 'LINODE_SECRET_KEY'},
                       }
@@ -68,147 +69,134 @@ class CloudProvisioningModule(Module):
         self.image = {}
         self.sizes = {}
         
-        def connect_all():
-            """
-            Connect to all services for which credentials are defined.
-            """
-            verify_creds()
-            for service in self.creds.keys():
-                Thread(target=connect(service)).start()
+        self.connect_all()
 
-        def verify_creds():
-            """
-            Read in all credentials that are defined in pydra_settings and are not empty.
-            """
-            for service in self.crednames.keys():
-                if all(map(lambda x: hasattr(pydra_settings, x) and eval('pydra_settings.' + x) != '', self.crednames[service].values())):
-                        self.creds[service] = [eval('pydra_settings.' + self.crednames[service]['id']), \
-                                                 dict([(k, eval('pydra_settings.' + v)) for k,v in self.crednames[service].iteritems() if k != 'id'])]
+    def connect_all(self):
+        """
+        Connect to all services for which credentials are defined.
+        """
+        self.verify_creds()
+        for service in self.creds.keys():
+            Thread(target=self.connect, args=[service,]).start()
 
-        def connect(service):
-            """
-            Connect to service and gather available instance images and sizes (if credentials are defined).
-            """
-            #attempt connection
-            try:
-                Driver = get_driver(eval('Provider.' + service))
-                self.conn[service] = Driver(self.creds[service][0], **self.creds[service][1])
-            except:
-                logger.error("Unable to connect to " + service + ". (Perhaps wrong credentials?)")
-                return
+    def verify_creds(self):
+        """
+        Read in all credentials that are defined in pydra_settings and are not empty.
+        """
+        for service in self.crednames.keys():
+            if all(map(lambda x: hasattr(pydra_settings, x) and eval('pydra_settings.' + x) != '', self.crednames[service].values())):
+                #'id' can't be in the dict because it cannot be passed to libcloud as a kwarg
+                self.creds[service] = [eval('pydra_settings.' + self.crednames[service]['id']), \
+                                       dict([(k, eval('pydra_settings.' + v)) for k,v in self.crednames[service].iteritems() if k != 'id'])]
 
-            #gather info
-            add_booted_nodes(service)
-            get_images(service)
-            get_sizes(service)
+    def connect(self, service):
+        """
+        Connect to service and gather available instance images and sizes (if credentials are defined).
+        """
+        #attempt connection
+        try:
+            Driver = get_driver(eval('Provider.' + service))
+            self.conn[service] = Driver(self.creds[service][0], **self.creds[service][1])
+        except:
+            logger.error("Unable to connect to " + service + ". (Perhaps wrong credentials?)")
+            return
+        #gather info
+        self.get_images(service)
+        self.get_sizes(service)
+        self.add_booted_nodes(service)
                 
-        def get_images(service):
-            """
-            Store image list from specified service.
-            """
-            logger.info("Retrieving " + service + " image list...")
-            try:
-                self.image[service] = filter(lambda x: x.id == eval('pydra_settings.' + service + '_IMAGE_ID'), self.conn[service].list_images())[0]
-                logger.info("Got " + service + " image list, and found Pydra image.")
-            except Exception, e:
-                logger.warning(service + " image list not received or Pydra image not found.")
+    def get_images(self, service):
+        """
+        Store image list from specified service.
+        """
+        logger.info("Retrieving " + service + " image list...")
+        try:
+            self.image[service] = filter(lambda x: x.id == eval('pydra_settings.' + service + '_IMAGE_ID'), self.conn[service].list_images())[0]
+            logger.info("Got " + service + " image list, and found Pydra image.")
+        except Exception, e:
+            logger.warning(service + " image list not received or Pydra image not found.")
 
-        def get_sizes(service):
-            """
-            Store list of instance sizes available from specified service.
-            """
-            self.sizes[service] = self.conn[service].list_sizes()
+    def get_sizes(self, service):
+        """
+        Store list of instance sizes available from specified service.
+        """
+        self.sizes[service] = self.conn[service].list_sizes()
 
-        def create_security_group():
-            """
-            Check for the Pydra EC2 security group.
-            This policy is entirely permissive as this is the only way to specify using libcloud.
-            """
+    def create_security_group(self):
+        """
+        Check for the Pydra EC2 security group.
+        This policy is entirely permissive as this is the only way to specify using libcloud.
+        """
+        try:
+            self.conn.ex_create_security_group("Pydra", "Permissive security group for Pydra cloud provisioning.")
+            self.conn.ex_authorize_security_group_permissive("Pydra")
+            logger.info("Amazon EC2 security group created.")
+        except:
+            logger.info("Amazon EC2 security group already created.")
+            
+    def add_booted_nodes(self, service):
+        """
+        Add available instances that have already been booted to the Pydra db.
+        This is useful if the Master is restarted.
+        """
+        for node_libcloud in self.conn[service].list_nodes():
+            #if already added or still booting: don't add
             try:
-                self.conn.ex_create_security_group("Pydra", "Permissive security group for Pydra cloud provisioning.")
-                self.conn.ex_authorize_security_group_permissive("Pydra")
-                logger.info("Amazon EC2 security group created.")
+                CloudNode.objects.get(name=node_libcloud.name)
             except:
-                logger.info("Amazon EC2 security group already created.")
-
-        def add_booted_nodes(service):
-            """
-            Add available instances that have already been booted to the Pydra db.
-            This is useful if the Master is restarted.
-            """
-            for node_libcloud in self.conn[service].list_nodes():
-                #if already added or still booting: don't add
-                if CloudNode.objects.get(name=node.name) or node.public_ip==['']:
-                    pass
-                else:
-                    self.create_node(node_libcloud)
-
-        connect_all()
-
+                if not node_libcloud.public_ip==['']:
+                    self.cloudnode_edit({'host': str(node_libcloud.public_ip[0])})
+        
     def cloudnode_request(self, node_pydra):
         """
-        Thread wrapper for _request_cloudnode
+        Request a cloud instance be booted (threaded).  The instance is automatically added as a pydra node after the hostname is received.
         """
-        # only works for EC2
-        # add field to cloudnode model
-        self.size = self.sizes[str(node_pydra.service_provider)][2]
-        # Change this!
-
-        logger.info(self.size)
-        Thread(target=self._cloudnode_request, args=(node_pydra,)).start()
-
-    def _cloudnode_request(self, node_pydra):
-        """
-        Request a cloud instance be booted.  The instance is automatically added as a pydra node after the hostname is received.
-        """
-        service = node_pydra.service_provider
-        logger.info("Creating " + service  + " node.")
-        #wait for image and size options to be retrieved
-        if not self.image[service] or not self.size:
-            sleep(5)
-            logger.info("Waiting on size or image.")
-        node_libcloud = self.conn[service].create_node(name='Pydra', image=self.image[service], size=self.size, ex_securitygroup="Pydra")
-        logger.info("Node created, name: " + node_libcloud.name)
-        logger.info("Waiting for hostname.")
-        while node_libcloud.public_ip==['']:
-            sleep(15)
+        def _cloudnode_request(node_pydra):
+            service = node_pydra.service_provider
+            logger.info("Creating " + service  + " node.")
+            #wait for image and size options to be retrieved
+            if not self.image[service] or not self.size:
+                sleep(5)
+                logger.info("Waiting on size or image.")
+            #This is bad, add to model and form!!
+            self.size = self.sizes[str(node_pydra.service_provider)][2]            
+            node_libcloud = self.conn[service].create_node(name='Pydra', image=self.image[service], size=self.size, ex_securitygroup="Pydra")
+            logger.info("Node created, name: " + node_libcloud.name)
+            logger.info("Waiting for hostname.")
+            while node_libcloud.public_ip==['']:
+                sleep(15)
             node_libcloud = [node for node in self.conn[service].list_nodes() if node.name==node_libcloud.name][0]
-        logger.info("Got hostname..")
+            logger.info("Got hostname..")
         
-        self.cloudnode_create(node_libcloud, node_pydra)
+            #Update booted cloud instance's information.
+            logger.info("Updating cloud node..")
+            update_values = {'id': str(node_pydra.id), 'host': str(node_libcloud.public_ip[0]), 'port': str(pydra_settings.PORT), 'security_group': "Pydra"}
+            try:
+                self.cloudnode_edit(update_values)
+            except Exception, e:
+                logger.error("CloudNode hostname could not be updated.")
 
-    def cloudnode_create(self, node_libcloud, node_pydra):
-        """
-        Update booted cloud instance's information.
-        """
-        logger.info("Updating cloud node..")
-        update_values = {'id': str(node_pydra.id), 'host': str(node_libcloud.public_ip[0]), 'port': str(pydra_settings.PORT), 'security_group': "Pydra"}
-        try:
-            self.cloudnode_edit(update_values)
-        except Exception, e:
-            logger.error("CloudNode hostname could not be updated.")
+        Thread(target=_cloudnode_request, args=(node_pydra,)).start()
 
     def cloudnode_delete(self, id):
         """
         deletes a cloudnode with the id passed in.
         """
-        Thread(target=self._cloudnode_delete).start()
-        node = CloudNode.objects.get(id=id)
-        node.deleted = True
-        node.save()
-        self.emit('NODE_DELETED', node)
+        def destroy_instance(node_pydra):
+            service = node_pydra.service_provider
+            try:
+                node_libcloud = [node for node in self.conn[service].list_nodes() if node.name==node_pydra.name][0]
+                self.conn[service].destroy_node(node_libcloud)
+                logger.info("CloudNode instance " + node_libcloud.name + " terminated.")
+            except:
+                logger.warning("CloudNode instance could not be terminated.  Instance must be terminated manually.")
 
-    def _cloudnode_delete(self, node_pydra):
-        """
-        destroys the cloud instance of the node passed in.
-        """
-        service = pydra_node.service_provider
-        try:
-            node_libcloud = [node for node in self.conn[service].list_nodes() if node.name==node_pydra.name][0]
-            self.conn[service].destroy_node(node_libcloud)
-            logger.info("CloudNode instance " + node_libcloud.name + " terminated.")
-        except:
-            logger.warning("CloudNode instance could not be terminated.  Instance must be terminated manually.")
+        Thread(target=destroy_instance, args=[node_pydra,]).start()
+
+        node_pydra = CloudNode.objects.get(id=id)
+        node_pydra.deleted = True
+        node_pydra.save()
+        self.emit('NODE_DELETED', node_pydra)
 
     def cloudnode_edit(self, values):
         """
@@ -229,13 +217,52 @@ class CloudProvisioningModule(Module):
         node.save()
 
         if new:
-            node.host = "Booting..."
-            node.save()
-            self.cloudnode_request(node)
+            #if hostname is already given, don't request instance because we already have one to add!
+            try:
+                values['host']
+                self.emit('NODE_CREATED', node)
+            except KeyError:
+                node.host = "Booting..."
+                node.save()
+                self.cloudnode_request(node)
         else:            
             self.emit('NODE_UPDATED', node)
+
+    def cloudnode_status(self):
+        """
+        Returns status information about CloudNodes and Workers in the cluster
+        """
+        node_status = {}
+        worker_list = self.workers
+        #iterate through all the nodes adding their status
+        for key, node in self.CloudNode.items():
+            worker_status = {}
+            if node.cores:
+                #iterate through all the workers adding their status as well
+                #also check for a worker whose should be running but is not connected
+                for i in range(node.cores):
+                    w_key = '%s:%s:%i' % (node.host, node.port, i)
+                    html_key = '%s_%i' % (node.id, i)
+                    if w_key in self._idle_workers:
+                        worker_status[html_key] = (1,-1,-1)
+                    elif w_key in self._active_workers:
+                        job = self._active_workers[w_key]
+                        worker_status[html_key] = (1, job.task_key, \
+                                job.subtask_key, \
+                                job.workunit if job.workunit else -1)
+                    else:
+                        worker_status[html_key] = -1
+
+            else:
+                worker_status=-1
+
+            node_status[key] = {'status':node.status(),
+                                'workers':worker_status
+                            }
+
+        return node_status
         
-    def list_cloudnodes(self):
+    def cloudnode_list(self):
         """
         Lists nodes available from all service providers (not necessarily added as pydra nodes)
         """

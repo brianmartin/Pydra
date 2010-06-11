@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "nodes.html" %}
 <!--
     Copyright 2009 Oregon State University
 
@@ -18,10 +18,6 @@
     along with Pydra.  If not, see <http://www.gnu.org/licenses/>.
 -->
 {% block content %}
-
-<a href={{SITE_ROOT}}/nodes/cloud/edit/> Create CloudNode </a>
-
-{% for node in nodes %}
-<p>{{node}}</p>
-{% endfor %}
+<a href={{SITE_ROOT}}/nodes/cloud/edit/> Create CloudNode </a><br>
+{{ block.super }}
 {% endblock %}

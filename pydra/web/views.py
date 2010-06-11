@@ -167,12 +167,22 @@ def discover(request):
 @user_passes_test(lambda u: u.has_perm('pydra.web.can_edit_nodes'))
 def cloudnodes(request):
     """
-    TODO: allow users to select service and number of nodes to provision from the cloud
-    NOW: lists available nodes on the user's amazon ec2 account.
+    display cloudnodes
     """
-    global pydra_controller
+    c = RequestContext(request, processors=[pydra_processor, settings_processor])
 
-    return render_to_response('cloud.html', {'nodes':pydra_controller.list_cloudnodes()})
+    try:
+        nodes, pages = pydra_controller.cloudnode_list()
+    except ControllerException, e:
+        response = e.code
+        nodes = None
+        pages = None
+
+    return render_to_response('cloud.html', {
+        'nodes':nodes,
+        'pages':pages,
+    }, context_instance=c)
+
 
 def cloudnode_status(request):
     """

@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block head %}
+    {{ block.super }}
+    
+    <style>
+        table {
+            padding:5px;
+        }
+    
+        #content {
+            width:800px;
+        }
+    
+        #auto {
+            background-color:#eeeeee;
+            border: 1px solid #888888;
+            margin-top:20px;
+            margin-bottom:20px;
+            -moz-border-radius: 5px;
+            -webkit-border-radius: 5px;
+        }
+        
+        .delete, .save {float:left;}
+        .delete {margin-left:30px;}
+        
+        #buttons {
+            margin:20px auto 0 auto;
+            width: 184px;
+        }
+    </style>
+    
+    <script src="{{MEDIA}}/js/jquery.qtip-1.0.0-rc3.min.js" type="text/javascript" charset="utf-8"></script>
+    <script type="text/javascript">
+        $(document).ready(function() {
+            $('.save').not('.icon').click(function(){
+                f = $('#node')
+                    .attr('action','{{SITE_ROOT}}/nodes/cloud/edit/{{id}}')
+                    .submit();
+                console.log(f);
+            });
+
+            $('.delete').not('.icon').click(function(){
+                if(confirm('Are you sure?  This action cannot be undone.')){
+                    $('#node')
+                        .attr('action','{{SITE_ROOT}}/nodes/cloud/delete/{{id}}')
+                        .submit();
+                }
+            });
+
+            $('input')
+                .each(function(){
+                $this = $(this);    
+                title = $(this.parentNode).attr('title');
+                $(this).qtip({
+                    content: title,
+                    position: {
+                        corner: {
+                            tooltip: 'leftMiddle',
+                            target: 'rightMiddle'
+                        }
+                    },
+                    show: {
+                        when: {event:'focus'},// show on focus
+                    },
+                    hide: false, // Don't hide on mouseout
+                    style: {
+                        border: {
+                            width: 2,
+                            radius: 5
+                        },
+                        padding: 10, 
+                        textAlign: 'center',
+                        tip: true, // Give it a speech bubble tip with automatic corner detection
+                        name: 'blue' // Style it according to the preset 'blue' style
+                    }
+                })
+                //standard blur event handler since qtip one is broken.
+                .blur(function(){$(this).qtip('hide')});
+            
+            });
+        });
+    </script>
+{% endblock %}
+
+{% block content %}
+    {% if form.errors %}
+        <div id="errors">
+        Please correct the following errors:
+            <ul class="errors">
+            {% for field, msg in form.errors.items %}
+                <li class="error"><strong>{{ field|escape }}</strong>{{msg|escape}}</li>
+            {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    <div id="formContainer">
+        <form id="node" name="node" method="POST" action="{{SITE_ROOT}}/nodes/edit/{{id}}">
+            <table>
+            <tbody>
+            <tr>
+                <td class="label">{{form.service_provider.label}}</td>
+                <td title="Cloud service providing the CloudNode.">{{form.service_provider}}</td>
+            </tr>
+            </tbody>
+            </table>
+            
+            <table id="auto">
+                <tr >
+                    <td colspan="100%"><b>These fields will be autodetected by the node and reported back.  You may update them if you like.   At some point these fields will be used to intelligently select nodes for work requests</b></td>
+                </td>
+                <tr>
+                  <td class="label">{{form.host.label}}</td>
+                  <td title="Host or IP address of the Node.">{{form.host}}</td>
+                </tr>
+                <tr>
+                  <td class="label">{{form.port.label}}</td>
+                  <td title="Port to connect to the Node on.">{{form.port}}</td>
+                </tr>
+                <tr>
+                    <td class="label">{{form.cores.label}}</td>
+                    <td title="Physical number of cores in the Node">{{form.cores}}</td>
+                </tr>
+                <tr>
+                    <td class="label">{{form.stones.label}}</td>
+                    <td title="Pystone speed rating; bigger is better">{{form.stones}}</td>
+                </tr>
+                <tr>
+                    <td class="label">{{form.total_memory.label}}</td>
+                    <td title="Total system memory in MB">{{form.total_memory}}</td>
+                </tr>
+                <tr>
+                    <td class="label">{{form.avail_memory.label}}</td>
+                    <td title="Available system memory in MB">{{form.avail_memory}}</td>
+                </tr>
+            </table>
+
+            <div id="buttons">
+                <div class="save">Save <div class="icon save"></div></div>
+                <div class="delete">Delete <div class="icon delete"></div></div>
+            </div>
+            
+            </div>
+
+        </form>
+    </div>
+{% endblock %}
