@@ -194,7 +194,7 @@ class TaskContainer(Task):
                 percentage = auto_percentage
 
             # if task is done it complete 100% of its work
-            if subtask.task._status == STATUS_COMPLETE:
+            if subtask.task.status == STATUS_COMPLETE:
                 progress += 100*percentage
 
             # task is only partially complete
@@ -209,12 +209,13 @@ class TaskContainer(Task):
         returns a plain text status message
         """
         for subtask in self.subtasks:
-            if subtask.task._status == STATUS_RUNNING:
+            if subtask.task.status == STATUS_RUNNING:
                 return subtask.task.progressMessage()
 
         return None
 
 
+    @property
     def status(self):
         """
         getStatus - returns status of this task.  A container task's status is 

@@ -195,7 +195,7 @@ class Task(object):
             task = subtask
             consumed_path, subtask = task._get_subtask(task_path)
             task_path = task_path[len(consumed_path):]
-        if clean and not subtask._status == STATUS_STOPPED:
+        if clean and not subtask._tatus == STATUS_STOPPED:
             task_path, subtask = task._get_subtask(consumed_path, clean=True)
         return subtask
 
@@ -291,11 +291,9 @@ class Task(object):
         self.logger.info('*** Workunit Started - %s:%s ***' % (subtask, id))
 
 
+    @property
     def status(self):
-        """
-        Returns the status of this task.  Used as a function rather than member variable so this
-        function can be overridden
-        """
+        """The current status of the task."""
         return self._status
 
 

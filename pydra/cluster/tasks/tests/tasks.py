@@ -65,7 +65,7 @@ class Task_TwistedTest(twisted_unittest.TestCase):
 
             # wait for event indicating task has started
             task.starting_event.wait(5)
-            self.assertEqual(task.status(), STATUS_RUNNING, 'Task started but status is not STATUS_RUNNING')
+            self.assertEqual(task.status, STATUS_RUNNING, 'Task started but status is not STATUS_RUNNING')
 
             task._stop()
 
@@ -76,7 +76,7 @@ class Task_TwistedTest(twisted_unittest.TestCase):
 
             #wait for the task to finish
             task.finished_event.wait(5)
-            self.assertEqual(task._status, STATUS_COMPLETE, 'Task stopped by status is not STATUS_COMPLETE')
+            self.assertEqual(task.status, STATUS_COMPLETE, 'Task stopped by status is not STATUS_COMPLETE')
 
         except Exception, e:
             print 'Exception while testing: %s' % e
@@ -100,7 +100,7 @@ class Task_TwistedTest(twisted_unittest.TestCase):
         task.parent = WorkerProxy()
 
 
-        self.assertEqual(task.status(), STATUS_STOPPED, 'Task did not initialize with status STATUS_STOPPED')
+        self.assertEqual(task.status, STATUS_STOPPED, 'Task did not initialize with status STATUS_STOPPED')
 
         # defer rest of test because this will cause the reactor to start
         return threads.deferToThread(self.verify_status, task=task, parent=task)
@@ -118,7 +118,7 @@ class Task_TwistedTest(twisted_unittest.TestCase):
         task = ParallelTask()
         task.subtask = StartupAndWaitTask()
         task.parent = WorkerProxy()
-        self.assertEqual(task.status(), STATUS_STOPPED, 'Task did not initialize with status STATUS_STOPPED')
+        self.assertEqual(task.status, STATUS_STOPPED, 'Task did not initialize with status STATUS_STOPPED')
 
         # defer rest of test because this will cause the reactor to start
         return threads.deferToThread(self.verify_status, task=task.subtask, parent=task, subtask_key='ParallelTask.StartupAndWaitTask')
