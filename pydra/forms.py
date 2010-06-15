@@ -24,7 +24,7 @@ from models import Node
 from models import CloudNode
 
 """
-Form used when creating nodes
+Form used when editing nodes
 """
 class NodeForm(ModelForm):
     class Meta:
@@ -39,23 +39,13 @@ class NodeForm(ModelForm):
 
 
 """
-Form used when creating cloudnodes
+Form used when editing cloudnodes
 """
-class CloudNodeForm(ModelForm):
-    class Meta:
-        model = CloudNode
-        exclude=('key', 'seen', 'pub_key', 'priv_key')
-
+class CloudNodeForm(NodeForm):
     service_provider= forms.CharField(max_length=255)
     name            = forms.CharField(max_length=255, required=False)
     instance_size   = forms.CharField(max_length=255, required=False)
     instance_image  = forms.CharField(max_length=255, required=False)
     security_group  = forms.CharField(max_length=255, required=False)
     host            = forms.CharField(required=False)
-    cores_available = forms.IntegerField(required=False)
-    cores           = forms.IntegerField(required=False)
-    stones          = forms.IntegerField(required=False)
-    total_memory    = forms.IntegerField(required=False)
-    avail_memory    = forms.IntegerField(required=False)
-    
 

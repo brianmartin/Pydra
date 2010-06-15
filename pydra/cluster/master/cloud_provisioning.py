@@ -42,15 +42,10 @@ class CloudProvisioningModule(Module):
 
     def __init__(self):
         self._interfaces = [
-            self.cloudnode_list,
             self.cloudnode_delete,
             self.cloudnode_edit,
-            self.cloudnode_status,
         ]
         self._listeners = {'MANAGER_INIT':self.cloud}
-
-    def _register(self, manager):
-        Module._register(self, manager)
 
     def cloud(self, callback=None):
         """
@@ -58,6 +53,7 @@ class CloudProvisioningModule(Module):
         """
         #define credential names (secure, host, and port may also be keys here):
         #other libcloud drivers: GOGRID, VPSNET, VCLOUD, RIMUHOSTING, ECP, IBM, OPENNEBULA, DREAMHOST
+        #  these may be easily added but I don't want to add too many I can't test..
         self.crednames = {'EC2': {'id': 'EC2_ACCESS_ID', 'secret': 'EC2_SECRET_KEY'},
                       'EUCALYPTUS': {'id': 'EUCALYPTUS_ACCESS_ID', 'secret':'EUCALYPTUS_SECRET_KEY', 'host': 'EUCALYPTUS_HOST'},
                       'RACKSPACE': {'id': 'RACKSPACE_USER', 'secret': 'RACKSPACE_API'},    
@@ -109,19 +105,22 @@ class CloudProvisioningModule(Module):
         """
         Store image list from specified service.
         """
-        logger.info("Retrieving " + service + " image list...")
         try:
+            logger.info("Retrieving " + service + " image list...")
             self.image[service] = filter(lambda x: x.id == eval('pydra_settings.' + service + '_IMAGE_ID'), self.conn[service].list_images())[0]
             logger.info("Got " + service + " image list, and found Pydra image.")
-        except Exception, e:
+        except:
             logger.warning(service + " image list not received or Pydra image not found.")
 
     def get_sizes(self, service):
         """
         Store list of instance sizes available from specified service.
         """
-        self.sizes[service] = self.conn[service].list_sizes()
-
+        try:
+            self.sizes[service] = self.conn[service].list_sizes()
+        except:
+            logger.warning(service + " size list not received.")
+        
     def create_security_group(self):
         """
         Check for the Pydra EC2 security group.
@@ -144,7 +143,7 @@ class CloudProvisioningModule(Module):
             try:
                 CloudNode.objects.get(name=node_libcloud.name)
             except:
-                if not node_libcloud.public_ip==['']:
+                if not node_libcloud.public_ip == ['']:
                     self.cloudnode_edit({'host': str(node_libcloud.public_ip[0])})
         
     def cloudnode_request(self, node_pydra):
@@ -155,24 +154,24 @@ class CloudProvisioningModule(Module):
             service = node_pydra.service_provider
             logger.info("Creating " + service  + " node.")
             #wait for image and size options to be retrieved
-            if not self.image[service] or not self.size:
+            #TODO: currently not working
+            if not self.image[service] or not self.sizes[service]:
                 sleep(5)
                 logger.info("Waiting on size or image.")
-            #This is bad, add to model and form!!
-            self.size = self.sizes[str(node_pydra.service_provider)][2]            
-            node_libcloud = self.conn[service].create_node(name='Pydra', image=self.image[service], size=self.size, ex_securitygroup="Pydra")
+            #This is bad, add sizes to model and form!!
+            node_libcloud = self.conn[service].create_node(name='Pydra', image=self.image[service], size=self.sizes[service][2])
             logger.info("Node created, name: " + node_libcloud.name)
             logger.info("Waiting for hostname.")
-            while node_libcloud.public_ip==['']:
-                sleep(15)
+            while node_libcloud.public_ip == ['']:
+                sleep(10)
             node_libcloud = [node for node in self.conn[service].list_nodes() if node.name==node_libcloud.name][0]
             logger.info("Got hostname..")
         
             #Update booted cloud instance's information.
-            logger.info("Updating cloud node..")
-            update_values = {'id': str(node_pydra.id), 'host': str(node_libcloud.public_ip[0]), 'port': str(pydra_settings.PORT), 'security_group': "Pydra"}
             try:
+                update_values = {'id': str(node_pydra.id), 'host': str(node_libcloud.public_ip[0]), 'port': str(pydra_settings.PORT)}
                 self.cloudnode_edit(update_values)
+                logger.info("Updating cloud node..")
             except Exception, e:
                 logger.error("CloudNode hostname could not be updated.")
 
@@ -180,7 +179,7 @@ class CloudProvisioningModule(Module):
 
     def cloudnode_delete(self, id):
         """
-        deletes a cloudnode with the id passed in.
+        Deletes and destroys a CloudNode.
         """
         def destroy_instance(node_pydra):
             service = node_pydra.service_provider
@@ -217,57 +216,16 @@ class CloudProvisioningModule(Module):
         node.save()
 
         if new:
-            #if hostname is already given, don't request instance because we already have one to add!
+            #if hostname is already given (and not empty), don't request instance because we already have one to add!
             try:
-                values['host']
-                self.emit('NODE_CREATED', node)
+                if values['host'] != '':
+                    self.emit('NODE_CREATED', node)
+                    logger.info("Node created using hostname: " + values['host'])
+                else:
+                    raise KeyError
             except KeyError:
                 node.host = "Booting..."
                 node.save()
                 self.cloudnode_request(node)
         else:            
             self.emit('NODE_UPDATED', node)
-
-    def cloudnode_status(self):
-        """
-        Returns status information about CloudNodes and Workers in the cluster
-        """
-        node_status = {}
-        worker_list = self.workers
-        #iterate through all the nodes adding their status
-        for key, node in self.CloudNode.items():
-            worker_status = {}
-            if node.cores:
-                #iterate through all the workers adding their status as well
-                #also check for a worker whose should be running but is not connected
-                for i in range(node.cores):
-                    w_key = '%s:%s:%i' % (node.host, node.port, i)
-                    html_key = '%s_%i' % (node.id, i)
-                    if w_key in self._idle_workers:
-                        worker_status[html_key] = (1,-1,-1)
-                    elif w_key in self._active_workers:
-                        job = self._active_workers[w_key]
-                        worker_status[html_key] = (1, job.task_key, \
-                                job.subtask_key, \
-                                job.workunit if job.workunit else -1)
-                    else:
-                        worker_status[html_key] = -1
-
-            else:
-                worker_status=-1
-
-            node_status[key] = {'status':node.status(),
-                                'workers':worker_status
-                            }
-
-        return node_status
-        
-    def cloudnode_list(self):
-        """
-        Lists nodes available from all service providers (not necessarily added as pydra nodes)
-        """
-        #return list of public ip's not node objects
-        nodes = []
-        for v in self.conn.values():
-            nodes += [node.public_ip for node in v.list_nodes() if node.name=='Pydra']
-        return nodes

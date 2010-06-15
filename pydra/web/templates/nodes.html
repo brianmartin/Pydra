@@ -410,7 +410,11 @@
                     <td class="status"><div class="inner">Unknown</div></td>
                         <td class="host">
                             {% if perms.pydra_server.can_edit_nodes %}
-                                <a href="{{SITE_ROOT}}/nodes/edit/{{node.id}}">{{node.host}}</a>
+                                 {% if node.cloudnode %}
+                                      <a href="{{SITE_ROOT}}/nodes/cloud/edit/{{node.id}}">{{node.host}} ({{node.service_provider}})</a>
+                                 {% else %}
+                                      <a href="{{SITE_ROOT}}/nodes/edit/{{node.id}}">{{node.host}}</a>
+                                 {% endif %}
                             {% else %}
                                 {{node.host}}
                             {% endif %}
