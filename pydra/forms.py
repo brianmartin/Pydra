@@ -20,8 +20,7 @@
 from django import forms
 from django.forms import ModelForm
 
-from models import Node
-from models import CloudNode
+from models import Node, CloudNode
 
 """
 Form used when editing nodes
@@ -42,6 +41,10 @@ class NodeForm(ModelForm):
 Form used when editing cloudnodes
 """
 class CloudNodeForm(NodeForm):
+    class Meta:
+        model = CloudNode
+        exclude=('key', 'seen', 'pub_key', 'priv_key')
+
     service_provider= forms.CharField(max_length=255)
     name            = forms.CharField(max_length=255, required=False)
     instance_size   = forms.CharField(max_length=255, required=False)

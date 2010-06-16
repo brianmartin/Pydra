@@ -33,11 +33,11 @@ urlpatterns = patterns('',
     # node urls
     (r'^nodes/$', nodes),
     (r'^nodes/discover/$', discover),
-    (r'^nodes/cloud/edit/(\d?)$', cloudnode_edit),
-    (r'^nodes/cloud/delete/(\d?)$', cloudnode_delete),
     (r'^nodes/edit/(\d?)$', node_edit),
     (r'^nodes/delete/(\d?)$', node_delete),
     (r'^nodes/status/$', node_status),
+    (r'^nodes/cloud/edit/(\d?)$', cloudnode_edit),
+    (r'^nodes/cloud/delete/(\d?)$', cloudnode_delete),
     (r'^worker/terminate/$', kill_worker),
 
     # job urls

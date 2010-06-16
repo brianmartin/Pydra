@@ -212,8 +212,8 @@ def cloudnode_edit(request, id=None):
 
     else:
         if id:
-            node = pydra_controller.node_detail(id)
-            form = CloudNodeForm(node)
+            cloudnode = pydra_controller.cloudnode_detail(id)
+            form = CloudNodeForm(cloudnode)
         else:
             # An unbound form
             form = CloudNodeForm() 

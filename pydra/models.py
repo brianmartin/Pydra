@@ -95,6 +95,18 @@ class CloudNode(Node):
     instance_image = models.CharField(max_length=255, null=True)
     #EC2-specific.  Not sure if this should stay around
     security_group = models.CharField(max_length=255, null=True)
+
+    def json_safe(self):
+        return {'host':self.host,
+                'port':self.port,
+                'cores_available':self.cores_available,
+                'cores':self.cores,
+                'service_provider':self.service_provider,
+                'stones':self.stones,
+                'total_memory':self.total_memory,
+                'avail_memory':self.avail_memory,
+                'deleted':self.deleted,
+               }
     
 class TaskInstanceManager(models.Manager):
     """
