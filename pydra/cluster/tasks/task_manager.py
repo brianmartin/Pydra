@@ -141,7 +141,7 @@ class TaskManager(Module):
             tasklist = []
 
         #turn the task into a tuple
-        processedTask = {'id':task.id, 'status':task.status(), \
+        processedTask = {'id':task.id, 'status':task.status, \
                          'progress':task.progress(), \
         'msg':task.progressMessage()}
 

@@ -47,6 +47,7 @@ class StatusSimulatingTaskProxy():
     def __init__(self):
         self._status = STATUS_STOPPED
 
+    @property
     def status(self):
         return self._status
 
