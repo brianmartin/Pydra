@@ -122,14 +122,13 @@ def get_task_logger(worker, task, subtask=None, workunit=None):
                          own log file so that the log can be read separately.
                          This is separate from the task instance log.
     """
-    directory, filename = task_log_path(task, subtask, workunit, worker)    
+    directory, filename = task_log_path(task, subtask, workunit, worker)
     init_dir(directory)
 
-    if workunit:
-        logger_name = 'workunit.%s.%s' % (task, workunit)
+    logger_name = 'task.%s' % task
 
-    else:
-        logger_name = 'task.%s' % task
+    if workunit:
+        logger_name += '.%s' % workunit
 
     logger = logging.getLogger(logger_name)
     handler = FileHandler(filename)
