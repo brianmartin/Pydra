@@ -41,12 +41,13 @@ class SubTaskWrapper():
     def get_subtask(self, task_path):
         return self.task.get_subtask(task_path)
 
-    def get_key(self):
+    @property
+    def key(self):
         """
         Returns the index of this wrapper
         """
         index = self.parent.subtasks.index(self)
-        base = self.parent.get_key()
+        base = self.parent.key
 
         return '%s.%s' % (base, index)
 

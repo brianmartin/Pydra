@@ -146,7 +146,7 @@ class Task_Internal_Test(unittest.TestCase):
         Verifies that the task key used to look up the task is generated correctly
         """
         expected = 'TestTask'
-        key = self.task.get_key()
+        key = self.task.key
         self.assertEqual(key, expected, 'Generated key [%s] does not match the expected key [%s]' % (key, expected) )
 
 

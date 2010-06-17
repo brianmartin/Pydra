@@ -106,7 +106,7 @@ class ParallelTask(Task):
         data, index = self.get_work_unit()
         while data is not None:
             logger.debug('[%s] Paralleltask - assigning remote work: key=%s, args=%s' % (self.get_worker().worker_key, '--', index))
-            self.parent.request_worker(self.subtask.get_key(), {'data':data}, index)
+            self.parent.request_worker(self.subtask.key, {'data':data}, index)
             data, index = self.get_work_unit()
 
 
