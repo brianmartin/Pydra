@@ -145,7 +145,7 @@ class CloudProvisioningModule(Module):
                 CloudNode.objects.get(name=node_libcloud.name)
             except:
                 if not node_libcloud.public_ip == ['']:
-                    self.cloudnode_edit({'host': str(node_libcloud.public_ip[0])})
+                    self.cloudnode_edit({'host': str(node_libcloud.public_ip[0]), 'service_provider': service})
         
     def cloudnode_request(self, node_pydra):
         """
