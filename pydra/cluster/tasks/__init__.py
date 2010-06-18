@@ -17,12 +17,8 @@
     along with Pydra.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-STATUS_CANCELLED = -2;
-STATUS_FAILED = -1;
-STATUS_STOPPED = 0;
-STATUS_RUNNING = 1;
-STATUS_PAUSED = 2;
-STATUS_COMPLETE = 3;
+(STATUS_CANCELLED, STATUS_FAILED, STATUS_STOPPED, STATUS_RUNNING,
+    STATUS_PAUSED, STATUS_COMPLETE) = range(6)
 
 class TaskNotFoundException(Exception):
     def __init__(self, value):

@@ -268,8 +268,8 @@ class MapReduceTask(Task):
                    }
 
         logger.debug("mapreduce: requesting worker for %s: %s"
-                % (mapid, self.maptask.get_key()) )
-        self.parent.request_worker(self.maptask.get_key(), map_args, mapid)
+                % (mapid, self.maptask.key) )
+        self.parent.request_worker(self.maptask.key, map_args, mapid)
 
         return True
 
@@ -289,8 +289,8 @@ class MapReduceTask(Task):
                       }
 
         logger.debug("mapreduce: requesting worker for %s: %s"
-                % (reduceid, self.reducetask.get_key()) )
-        self.parent.request_worker(self.reducetask.get_key(), reduce_args, \
+                % (reduceid, self.reducetask.key) )
+        self.parent.request_worker(self.reducetask.key, reduce_args, \
                                    reduceid)
 
         return True
@@ -393,12 +393,9 @@ class MapReduceWrapper():
         self.task.parent = parent
 
 
-    def _generate_key(self):
-        return self.task._generate_key()
-
-
-    def get_key(self):
-        return self._generate_key()
+    @property
+    def key(self):
+        return self.task.key
 
 
     def get_worker(self):

@@ -26,13 +26,11 @@ class WorkerProxy():
     """
     Class for proxying worker functions
     """
+    key = None
     worker_key = "WorkerProxy"
 
     def get_worker(self):
         return self
-
-    def get_key(self):
-        return None
 
 
 class StartupAndWaitTask(Task):

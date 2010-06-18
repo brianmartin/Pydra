@@ -65,7 +65,7 @@ class ParallelTask_Test(unittest.TestCase):
         Verifies that the task key used to look up the task is generated correctly
         """
         expected = 'TestParallelTask'
-        key = self.parallel_task.get_key()
+        key = self.parallel_task.key
         self.assertEqual(key, expected, 'Generated key [%s] does not match the expected key [%s]' % (key, expected) )
 
 
@@ -74,7 +74,7 @@ class ParallelTask_Test(unittest.TestCase):
         Verifies that the task key used to look up the task is generated correctly
         """
         expected = 'TestParallelTask.TestTask'
-        key = self.parallel_task.subtask.get_key()
+        key = self.parallel_task.subtask.key
         self.assertEqual(key, expected, 'Generated key [%s] does not match the expected key [%s]' % (key, expected) )
 
 

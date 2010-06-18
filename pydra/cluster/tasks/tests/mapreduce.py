@@ -94,7 +94,7 @@ class MapReduceTask_Test(unittest.TestCase):
         Verifies that the task key used to look up the task is generated correctly
         """
         expected = 'CountWords'
-        key = self.mapreduce_task.get_key()
+        key = self.mapreduce_task.key
         self.assertEqual(key, expected, 'Generated key [%s] does not match the expected key [%s]' % (key, expected) )
 
 
@@ -105,12 +105,12 @@ class MapReduceTask_Test(unittest.TestCase):
 
         # test for MapTask
         expected = 'CountWords.MapWords'
-        key = self.mapreduce_task.maptask.get_key()
+        key = self.mapreduce_task.maptask.key
         self.assertEqual(key, expected, 'Generated key [%s] does not match the expected key [%s]' % (key, expected) )
 
         # test for ReduceTask
         expected = 'CountWords.ReduceWords'
-        key = self.mapreduce_task.reducetask.get_key()
+        key = self.mapreduce_task.reducetask.key
         self.assertEqual(key, expected, 'Generated key [%s] does not match the expected key [%s]' % (key, expected) )
 
 
