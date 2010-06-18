@@ -48,7 +48,6 @@ class Master(ModuleManager):
         """
         self.modules = [
             AutoDiscoveryModule,
-            CloudProvisioningModule,
             NodeConnectionManager,
             TaskManager,
             TaskSyncServer,
@@ -57,6 +56,9 @@ class Master(ModuleManager):
             NodeManager,
             MasterLogAggregator
         ]
+
+        if hasattr(pydra_settings, 'cloud_provisioning_support') and pydra_settings.cloud_provisioning_support:
+            self.modules += [CloudProvisioningModule]
 
         ModuleManager.__init__(self)
 

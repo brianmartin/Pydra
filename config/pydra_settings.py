@@ -98,6 +98,7 @@ MULTICAST_ALL = False
 #
 # Cloud Provisioning 
 #
+cloud_provisioning_support = True
 
 # Amazon AWS
 EC2_ACCESS_ID = ''

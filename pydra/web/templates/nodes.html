@@ -350,8 +350,12 @@
 {% block submenu %}
     {% if perms.pydra_server.can_edit_nodes %}
         <span class="menuitem"><a class="menuitem" href="{{SITE_ROOT}}/nodes/edit">Create Node</a></span>
-        <span class="menuitem"><a class="menuitem" href="{{SITE_ROOT}}/nodes/discover/">Discover Nodes</a></span>
-        <span class="menuitem lastmenuitem"><a class="menuitem" href="{{SITE_ROOT}}/nodes/cloud/edit">Provision Cloud Node</a></span>
+        {% if cloud_support %}
+            <span class="menuitem"><a class="menuitem" href="{{SITE_ROOT}}/nodes/discover/">Discover Nodes</a></span>
+            <span class="menuitem lastmenuitem"><a class="menuitem" href="{{SITE_ROOT}}/nodes/cloud/edit">Provision Cloud Node</a></span>
+        {% else %}
+            <span class="menuitem lastmenuitem"><a class="menuitem" href="{{SITE_ROOT}}/nodes/discover/">Discover Nodes</a></span>
+        {% endif %}
     {% endif %}
 {% endblock %}
 
