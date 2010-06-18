@@ -71,15 +71,24 @@ def nodes(request):
     """
     display nodes
     """
+    import pydra_settings
+    try:
+        cloud_support = pydra_settings.cloud_provisioning_support
+    except:
+        cloud_support = False
+
     c = RequestContext(request, processors=[pydra_processor, settings_processor])
 
     try:
         nodes, pages = pydra_controller.node_list()
-        for node in nodes:
-            if list(CloudNode.objects.filter(id=node['id'])) != []:
-                node['cloudnode'] = True
-            else:
-                node['cloudnode'] = False
+        if cloud_support:
+            for node in nodes:
+                cloudnodes = CloudNode.objects.filter(id=node['id'])
+                if list(cloudnodes) != []:
+                    node['cloudnode'] = True
+                    node['service_provider'] = cloudnodes[0].service_provider
+                else:
+                    node['cloudnode'] = False
     except ControllerException, e:
         response = e.code
         nodes = None
@@ -88,6 +97,7 @@ def nodes(request):
     return render_to_response('nodes.html', {
         'nodes':nodes,
         'pages':pages,
+        'cloud_support':cloud_support,
     }, context_instance=c)
 
 
