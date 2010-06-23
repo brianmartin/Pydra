@@ -30,8 +30,7 @@ import pydra_web_settings as settings
 
 from pydra.cluster.controller import ControllerException
 from pydra.cluster.controller.web.controller import WebController
-from pydra.forms import NodeForm
-from pydra.forms import CloudNodeForm
+from pydra.forms import NodeForm, CloudNodeCreateForm, CloudNodeEditForm
 from pydra.models import Node, CloudNode, TaskInstance
 from pydra.config import load_settings
 
@@ -193,14 +192,19 @@ def cloudnode_delete(request, id=None):
         if id:
             node = pydra_controller.node_detail(id)
             form = CloudNodeForm(node)
+            return render_to_response('cloud_edit.html', {
+                'form': form,
+                'id':id,
+                }, context_instance=c)
+
         else:
             # An unbound form
             form = CloudNodeForm() 
+            return render_to_response('cloud_create.html', {
+                'form': form,
+                'id':id,
+                }, context_instance=c)
 
-    return render_to_response('cloud_edit.html', {
-        'form': form,
-        'id':id,
-    }, context_instance=c)
 
 
 @user_passes_test(lambda u: u.has_perm('pydra.web.can_edit_nodes'))
@@ -213,6 +217,11 @@ def cloudnode_edit(request, id=None):
     if request.method == 'POST': 
         form = CloudNodeForm(request.POST)
 
+        form.fields['service_provider'].choices = [(x['id'], x['description']) for x in pydra_controller.cloudnode_info_providers()]
+        form.fields['instance_size'].choices    = [(y['id'], y['description']) for y in pydra_controller.cloudnode_info_sizes(request.POST['service_provider'])]
+
+        print request.POST.items()
+        
         if form.is_valid():
             if id:
                 form.cleaned_data['id'] = id
@@ -223,16 +232,49 @@ def cloudnode_edit(request, id=None):
     else:
         if id:
             cloudnode = pydra_controller.cloudnode_detail(id)
-            form = CloudNodeForm(cloudnode)
+            form = CloudNodeEditForm(cloudnode)
+            return render_to_response('cloud_edit.html', {
+                'form': form,
+                'id':id,
+                }, context_instance=c)
+
         else:
             # An unbound form
-            form = CloudNodeForm() 
+            form = CloudNodeCreateForm() 
+            return render_to_response('cloud_create.html', {
+                'form': form,
+                'id':id,
+                }, context_instance=c)
 
-    return render_to_response('cloud_edit.html', {
-        'form': form,
-        'id':id,
-    }, context_instance=c)
+def cloudnode_info_sizes(request, service_provider=[("default", "default")]):
+    """
+    Retrieves available sizes given a service provider.
+    """
+    c = RequestContext(request, {
+        'MEDIA_URL': settings.MEDIA_URL
+    }, [pydra_processor])
 
+    try:
+        response = simplejson.dumps(pydra_controller.cloudnode_info_sizes(service_provider))
+    except ControllerException, e:
+        response = e.code
+
+    return HttpResponse(response, mimetype='application/javascript')
+
+def cloudnode_info_providers(request):
+    """
+    Retrieves available service providers.
+    """
+    c = RequestContext(request, {
+        'MEDIA_URL': settings.MEDIA_URL
+    }, [pydra_processor])
+
+    try:
+        response = simplejson.dumps(pydra_controller.cloudnode_info_providers())
+    except ControllerException, e:
+        response = e.code
+
+    return HttpResponse(response, mimetype='application/javascript')
 
 def node_status(request):
     """
@@ -248,7 +290,6 @@ def node_status(request):
         response = e.code
 
     return HttpResponse(response, mimetype='application/javascript')
-
 
 def jobs(request):
     """

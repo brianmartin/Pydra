@@ -38,6 +38,8 @@ urlpatterns = patterns('',
     (r'^nodes/status/$', node_status),
     (r'^nodes/cloud/edit/(\d?)$', cloudnode_edit),
     (r'^nodes/cloud/delete/(\d?)$', cloudnode_delete),
+    (r'^nodes/cloud/info/sizes/([A-Za-z0-9]+)$', cloudnode_info_sizes),
+    (r'^nodes/cloud/info/providers/$', cloudnode_info_providers),
     (r'^worker/terminate/$', kill_worker),
 
     # job urls

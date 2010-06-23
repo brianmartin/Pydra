@@ -45,6 +45,8 @@ class CloudProvisioningModule(Module):
             self.cloudnode_delete,
             self.cloudnode_detail,
             self.cloudnode_edit,
+            self.cloudnode_info_sizes,
+            self.cloudnode_info_providers,
         ]
         self._listeners = {'MANAGER_INIT':self.cloud}
 
@@ -52,15 +54,28 @@ class CloudProvisioningModule(Module):
         """
         Initialize and connect to services for which credentials are provided in pydra_settings.
         """
-        #define credential names (secure, host, and port may also be keys here):
-        #other libcloud drivers: GOGRID, VPSNET, VCLOUD, RIMUHOSTING, ECP, IBM, OPENNEBULA, DREAMHOST
-        #  these may be easily added but I don't want to add too many I can't test..
+
+        #To add cloud service providers, simply define a description and crednames below.
+        #Crednames can be in any order and are keywords for the specific libcloud Driver.
+        #Crednames should then also be added to pydra_settings in addition to the preferred image id: SERVICE_IMAGE.
+        #Valid keywords are: id (used internally), secret, host, port, and secure
+        #As of last update, undefined libcloud drivers include:
+        #    GOGRID, VPSNET, VCLOUD, RIMUHOSTING, ECP, IBM, OPENNEBULA, DREAMHOST
+        #    (these may be easily added but I don't want to add too many I can't test..)
+
+        self.descriptions = {'EC2': 'Amazon EC2',
+                             'EUCALYPTUS': 'Eucalyptus Cloud',
+                             'RACKSPACE': 'Rackspace Cloud (Mosso)',
+                             'SLICEHOST': 'Slicehost',
+                             'LINODE': 'Linode',
+                             }        
         self.crednames = {'EC2': {'id': 'EC2_ACCESS_ID', 'secret': 'EC2_SECRET_KEY'},
                       'EUCALYPTUS': {'id': 'EUCALYPTUS_ACCESS_ID', 'secret':'EUCALYPTUS_SECRET_KEY', 'host': 'EUCALYPTUS_HOST'},
                       'RACKSPACE': {'id': 'RACKSPACE_USER', 'secret': 'RACKSPACE_API'},    
                       'SLICEHOST': {'id': 'SLICEHOST_USER', 'secret': 'SLICEHOST_SECRET_KEY'},
                       'LINODE': {'id': 'LINODE_USER', 'secret': 'LINODE_SECRET_KEY'},
                       }
+
         self.creds = {}
         self.conn = {}
         self.image = {}
@@ -118,14 +133,16 @@ class CloudProvisioningModule(Module):
         Store list of instance sizes available from specified service.
         """
         try:
-            self.sizes[service] = self.conn[service].list_sizes()
+            self.sizes[service] = {}
+            for size in self.conn[service].list_sizes():
+                self.sizes[service][size.id] = size
         except:
             logger.warning(service + " size list not received.")
         
     def create_security_group(self):
         """
         Check for the Pydra EC2 security group.
-        This policy is entirely permissive as this is the only way to specify using libcloud.
+        This policy is entirely permissive (all ports open) as this is the only way to specify using libcloud.
         """
         try:
             self.conn.ex_create_security_group("Pydra", "Permissive security group for Pydra cloud provisioning.")
@@ -154,13 +171,8 @@ class CloudProvisioningModule(Module):
         def _cloudnode_request(node_pydra):
             service = node_pydra.service_provider
             logger.info("Creating " + service  + " node.")
-            #wait for image and size options to be retrieved
-            #TODO: currently not working
-            if not self.image[service] or not self.sizes[service]:
-                sleep(5)
-                logger.info("Waiting on size or image.")
-            #This is bad, add sizes to model and form!!
-            node_libcloud = self.conn[service].create_node(name='Pydra', image=self.image[service], size=self.sizes[service][2])
+
+            node_libcloud = self.conn[service].create_node(name='Pydra' + str(node_pydra.id), image=self.image[service], size=self.sizes[service][node_pydra.instance_size])
             logger.info("Node created, name: " + node_libcloud.name)
             logger.info("Waiting for hostname.")
             while node_libcloud.public_ip == ['']:
@@ -239,3 +251,15 @@ class CloudProvisioningModule(Module):
         """
         cloudnode = CloudNode.objects.get(id=id)
         return cloudnode.json_safe()
+
+    def cloudnode_info_sizes(self, service_provider):
+        """
+        Returns available sizes for the given service_provider
+        """
+        return [{'id': size_id, 'description': size.name} for (size_id, size) in self.sizes[service_provider].items()]
+
+    def cloudnode_info_providers(self):
+        """
+        Returns available providers
+        """
+        return [{'id': service_provider, 'description': self.descriptions[service_provider]} for service_provider in self.conn.keys()]

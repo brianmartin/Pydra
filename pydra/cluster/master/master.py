@@ -63,7 +63,3 @@ class Master(ModuleManager):
         ModuleManager.__init__(self)
 
         self.emit_signal('MANAGER_INIT')
-
-
-
-
