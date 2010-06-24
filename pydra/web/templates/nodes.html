@@ -352,7 +352,7 @@
         <span class="menuitem"><a class="menuitem" href="{{SITE_ROOT}}/nodes/edit">Create Node</a></span>
         {% if cloud_support %}
             <span class="menuitem"><a class="menuitem" href="{{SITE_ROOT}}/nodes/discover/">Discover Nodes</a></span>
-            <span class="menuitem lastmenuitem"><a class="menuitem" href="{{SITE_ROOT}}/nodes/cloud/edit">Provision Cloud Node</a></span>
+            <span class="menuitem lastmenuitem"><a class="menuitem" href="{{SITE_ROOT}}/nodes/cloud/create/">Provision Cloud Node</a></span>
         {% else %}
             <span class="menuitem lastmenuitem"><a class="menuitem" href="{{SITE_ROOT}}/nodes/discover/">Discover Nodes</a></span>
         {% endif %}
@@ -414,13 +414,12 @@
                     <td class="status"><div class="inner">Unknown</div></td>
                         <td class="host">
                             {% if perms.pydra_server.can_edit_nodes %}
-                                 {% if node.cloudnode %}
-                                      <a href="{{SITE_ROOT}}/nodes/cloud/edit/{{node.id}}">{{node.host}} ({{node.service_provider}})</a>
-                                 {% else %}
                                       <a href="{{SITE_ROOT}}/nodes/edit/{{node.id}}">{{node.host}}</a>
-                                 {% endif %}
                             {% else %}
-                                {{node.host}}
+                                 {{node.host}}
+                            {% endif %}
+                            {% if node.cloudnode %}
+                                ({{node.service_provider}})
                             {% endif %}
                         </td>
                         <td class="port">{{node.port}}</td>

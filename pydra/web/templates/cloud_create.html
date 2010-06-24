@@ -35,7 +35,7 @@
         $(document).ready(function() {
             $('.save').not('.icon').click(function(){
                 f = $('#node')
-                    .attr('action','{{SITE_ROOT}}/nodes/cloud/edit/{{id}}')
+                    .attr('action','{{SITE_ROOT}}/nodes/cloud/create/')
                     .submit();
                 console.log(f);
             });
@@ -93,15 +93,18 @@
             })
         });
 
+        function retrieve_sizes(){
+                                    $.getJSON('{{ROOT}}/nodes/cloud/info/sizes/' + $("select#id_service_provider").val(), {}, function(j){
+		                        var options = '';
+      		                        for (var i = 0; i < j.length; i++)
+			                    options +=
+                                    '<option value="' + j[i].id + '">' + j[i].description + ' (' + j[i].price + '/hr)</option>';
+		                        $("select#id_instance_size").html(options);
+		                    })
+                         }
+
         $(function(){
-	    $("select#id_service_provider").change(function(){
-		$.getJSON('{{ROOT}}/nodes/cloud/info/sizes/' + $("select#id_service_provider").val(), {}, function(j){
-		    var options = '';
-		    for (var i = 0; i < j.length; i++)
-			options += '<option value="' + j[i].id + '">' + j[i].description + '</option>';
-		    $("select#id_instance_size").html(options);
-		})
-	    })
+	    $("select#id_service_provider").change(retrieve_sizes);
         });
 
     </script>

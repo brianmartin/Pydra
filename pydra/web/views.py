@@ -205,46 +205,27 @@ def cloudnode_delete(request, id=None):
                 'id':id,
                 }, context_instance=c)
 
-
-
 @user_passes_test(lambda u: u.has_perm('pydra.web.can_edit_nodes'))
-def cloudnode_edit(request, id=None):
+def cloudnode_create(request):
     """
-    Handler for creating and editing cloudnodes
+    Handler for creating cloudnodes
     """
     c = RequestContext(request, processors=[pydra_processor, settings_processor])
 
-    if request.method == 'POST': 
-        form = CloudNodeForm(request.POST)
+    if request.method == 'POST':
+        form = CloudNodeCreateForm(request.POST)
 
         form.fields['service_provider'].choices = [(x['id'], x['description']) for x in pydra_controller.cloudnode_info_providers()]
         form.fields['instance_size'].choices    = [(y['id'], y['description']) for y in pydra_controller.cloudnode_info_sizes(request.POST['service_provider'])]
 
-        print request.POST.items()
-        
         if form.is_valid():
-            if id:
-                form.cleaned_data['id'] = id
-            pydra_controller.cloudnode_edit(form.cleaned_data)
-
-            return HttpResponseRedirect('%s/nodes' % settings.SITE_ROOT) # Redirect after POST
-
+            pydra_controller.cloudnode_create(form.cleaned_data)
+            return HttpResponseRedirect('%s/nodes' % settings.SITE_ROOT)
     else:
-        if id:
-            cloudnode = pydra_controller.cloudnode_detail(id)
-            form = CloudNodeEditForm(cloudnode)
-            return render_to_response('cloud_edit.html', {
-                'form': form,
-                'id':id,
-                }, context_instance=c)
-
-        else:
-            # An unbound form
-            form = CloudNodeCreateForm() 
-            return render_to_response('cloud_create.html', {
-                'form': form,
-                'id':id,
-                }, context_instance=c)
+        form = CloudNodeCreateForm()
+        return render_to_response('cloud_create.html', {
+            'form': form,
+            }, context_instance=c)
 
 def cloudnode_info_sizes(request, service_provider=[("default", "default")]):
     """

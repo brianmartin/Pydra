@@ -45,8 +45,8 @@ class CloudNodeCreateForm(NodeForm):
         model = CloudNode
         exclude=('key', 'seen', 'pub_key', 'priv_key')
 
-    service_provider= forms.ChoiceField()
-    instance_size   = forms.ChoiceField()
+    service_provider= forms.ChoiceField(choices=[('---', ' ---------- ')])
+    instance_size   = forms.ChoiceField(choices=[('---', ' ---------- ')])
     name            = forms.CharField(required=False)
     instance_image  = forms.CharField(required=False)
     security_group  = forms.CharField(required=False)
