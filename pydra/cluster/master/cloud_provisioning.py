@@ -44,7 +44,7 @@ class CloudProvisioningModule(Module):
         self._interfaces = [
             self.cloudnode_delete,
             self.cloudnode_detail,
-            self.cloudnode_edit,
+            self.cloudnode_create,
             self.cloudnode_info_sizes,
             self.cloudnode_info_providers,
         ]
@@ -162,7 +162,7 @@ class CloudProvisioningModule(Module):
                 CloudNode.objects.get(name=node_libcloud.name)
             except:
                 if not node_libcloud.public_ip == ['']:
-                    self.cloudnode_edit({'host': str(node_libcloud.public_ip[0]), 'service_provider': service})
+                    self.cloudnode_create({'host': str(node_libcloud.public_ip[0]), 'service_provider': service})
         
     def cloudnode_request(self, node_pydra):
         """
@@ -173,19 +173,19 @@ class CloudProvisioningModule(Module):
             logger.info("Creating " + service  + " node.")
 
             node_libcloud = self.conn[service].create_node(name='Pydra' + str(node_pydra.id), image=self.image[service], size=self.sizes[service][node_pydra.instance_size])
-            logger.info("Node created, name: " + node_libcloud.name)
+            logger.info("Cloud node created, name: " + node_libcloud.name)
             logger.info("Waiting for hostname.")
             while node_libcloud.public_ip == ['']:
                 sleep(15)
                 node_libcloud = [node for node in self.conn[service].list_nodes() if node.name==node_libcloud.name][0]
             logger.info("Got hostname..")
         
-            #Update booted cloud instance's information.
             try:
-                update_values = {'id': str(node_pydra.id), 'host': str(node_libcloud.public_ip[0]), 'port': str(pydra_settings.PORT), 'service': service}
-                self.cloudnode_edit(update_values)
                 logger.info("Updating cloud node..")
-            except Exception, e:
+                node_pydra.host = str(node_libcloud.public_ip[0])
+                node_pydra.save()
+                self.emit('NODE_UPDATED', node_pydra)
+            except:
                 logger.error("CloudNode hostname could not be updated.")
 
         Thread(target=_cloudnode_request, args=(node_pydra,)).start()
@@ -211,39 +211,25 @@ class CloudProvisioningModule(Module):
         node_pydra.save()
         self.emit('NODE_DELETED', node_pydra)
 
-    def cloudnode_edit(self, values):
+    def cloudnode_create(self, values):
         """
-        Updates or creates a CloudNode with the values passed in.  If an id field
-        is present it will be update the existing CloudNode.  Otherwise it will
-        create a new CloudNode.
+        Updates a CloudNode with the values passed in.
         """
-        if values.has_key('id'):
-            node = CloudNode.objects.get(pk=values['id'])
-            updated = values['port'] == node.port
-            new = False
-        else:
-            node = CloudNode()
-            new = True
-
+        node = CloudNode()
+        
         for k,v in values.items():
             node.__dict__[k] = v
         node.save()
 
-        if new:
-            #if hostname is already given (and not empty), don't request instance because we already have one to add!
-            try:
-                if values['host'] != '':
-                    self.emit('NODE_CREATED', node)
-                    logger.info("Node created using hostname: " + values['host'])
-                else:
-                    raise KeyError
-            #otherwise request a new instance
-            except KeyError:
-                node.host = "Booting..."
-                node.save()
-                self.cloudnode_request(node)
-        else:            
-            self.emit('NODE_UPDATED', node)
+
+        #if hostname is already given (and not empty), don't request instance because we already have one to add!
+        if values.has_key('host') and values['host'] != '':
+            logger.info("Cloud node created using hostname: " + values['host'])
+            self.emit('NODE_CREATED', node)
+        else:
+            node.host = "Booting..."
+            node.save()
+            self.cloudnode_request(node)
 
     def cloudnode_detail(self, id):
         """
@@ -252,14 +238,14 @@ class CloudProvisioningModule(Module):
         cloudnode = CloudNode.objects.get(id=id)
         return cloudnode.json_safe()
 
-    def cloudnode_info_sizes(self, service_provider):
+    def cloudnode_info_sizes(self, service):
         """
-        Returns available sizes for the given service_provider
+        Returns available sizes for the given service provider
         """
-        return [{'id': size_id, 'description': size.name} for (size_id, size) in self.sizes[service_provider].items()]
+        return [{'id': size.id, 'description': size.name, 'price': size.price, 'ram': size.ram} for size in self.sizes[service].values()]
 
     def cloudnode_info_providers(self):
         """
-        Returns available providers
+        Returns available service providers
         """
-        return [{'id': service_provider, 'description': self.descriptions[service_provider]} for service_provider in self.conn.keys()]
+        return [{'id': service, 'description': self.descriptions[service]} for service in self.conn.keys()]
