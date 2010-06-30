@@ -110,7 +110,7 @@ class CloudProvisioningModule(Module):
             Driver = get_driver(eval('Provider.' + service))
             self.conn[service] = Driver(self.creds[service][0], **self.creds[service][1])
         except:
-            logger.error("Unable to connect to " + service + ". (Perhaps wrong credentials?)")
+            logger.error("Unable to connect to %s. (Perhaps wrong credentials?)" % service)
             return
         #gather info
         self.get_images(service)
@@ -122,11 +122,11 @@ class CloudProvisioningModule(Module):
         Store image list from specified service.
         """
         try:
-            logger.info("Retrieving " + service + " image list...")
+            logger.info("Retrieving %s image list..." % service)
             self.image[service] = filter(lambda x: x.id == eval('pydra_settings.' + service + '_IMAGE_ID'), self.conn[service].list_images())[0]
-            logger.info("Got " + service + " image list, and found Pydra image.")
+            logger.info("Got %s image list, and found Pydra image." % service)
         except:
-            logger.warning(service + " image list not received or Pydra image not found.")
+            logger.warning("%s image list not received or Pydra image not found." % service)
 
     def get_sizes(self, service):
         """
@@ -137,7 +137,7 @@ class CloudProvisioningModule(Module):
             for size in self.conn[service].list_sizes():
                 self.sizes[service][size.id] = size
         except:
-            logger.warning(service + " size list not received.")
+            logger.warning("%s size list not received." % service)
         
     def create_security_group(self):
         """
@@ -170,7 +170,7 @@ class CloudProvisioningModule(Module):
         """
         def _cloudnode_request(node_pydra):
             service = node_pydra.service_provider
-            logger.info("Creating " + service  + " node.")
+            logger.info("Creating %s node." % service)
 
             node_libcloud = self.conn[service].create_node(name='Pydra' + str(node_pydra.id), image=self.image[service], size=self.sizes[service][node_pydra.instance_size])
             logger.info("Cloud node created, name: " + node_libcloud.name)
@@ -201,7 +201,7 @@ class CloudProvisioningModule(Module):
             try:
                 node_libcloud = [node for node in self.conn[service].list_nodes() if node.name==node_pydra.name][0]
                 self.conn[service].destroy_node(node_libcloud)
-                logger.info("CloudNode instance " + node_libcloud.name + " terminated.")
+                logger.info("CloudNode instance %s terminated." % node_libcloud.name)
             except:
                 logger.warning("CloudNode instance could not be terminated.  Instance must be terminated manually.")
 
@@ -220,7 +220,6 @@ class CloudProvisioningModule(Module):
         for k,v in values.items():
             node.__dict__[k] = v
         node.save()
-
 
         #if hostname is already given (and not empty), don't request instance because we already have one to add!
         if values.has_key('host') and values['host'] != '':
