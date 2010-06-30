@@ -305,46 +305,6 @@ class TaskInstance(AbstractJob):
         )
 
 
-class WorkUnit(AbstractJob):
-    """
-    Workunits are subtask requests that can be distributed by pydra.  A
-    workunit is generally the smallest unit of work for a task.  This
-    model represents key data points about them.
-    
-    workunit:  key that uniquely identifies this workunit within the 
-                datasource for the task.  This might also be the data itself
-                depending on how the key was initialized
-    """
-    task_instance = models.ForeignKey(TaskInstance, related_name='workunits')
-    workunit      = models.CharField(max_length=255)
-    size          = models.IntegerField(default=1)
-    batch         = models.ForeignKey(Batch, null=True)
-
-    def __getattribute__(self, key):
-        if key == 'task_id':
-            return self.task_instance.id
-        elif key == 'on_main_worker':
-            return self.task_instance.worker == self.worker
-        return super(WorkUnit, self).__getattribute__(key)
-
-    def json_safe(self):
-        return {
-            'subtask_key':self.subtask_key,
-            'workunit_key':self.workunit,
-            'args':self.args,
-            'started':self.started.strftime('%Y-%m-%d %H:%m:%S') \
-                                                    if self.started else None,
-            'completed':self.completed.strftime('%Y-%m-%d %H:%m:%S') \
-                                                if self.completed else None,
-            'worker':self.worker,
-            'status':self.status,
-            'log_retrieved':self.log_retrieved
-        }
-
-    def transmitable(self):
-        return {self.subtask_key:[self.workunit]}
-
-
 class Batch(AbstractJob):
     """
     Batch contains a set of WorkUnits.  Batches are a proxy to most properties
@@ -354,7 +314,7 @@ class Batch(AbstractJob):
     """
     task_instance = models.ForeignKey(TaskInstance, related_name='batches')
     size          = models.IntegerField(default=1)
-    
+
     def __init__(self, iterator=None):
         if iterator:
             workunits = {}
@@ -414,3 +374,43 @@ class Batch(AbstractJob):
     
     def transmitable(self):
         return self._transmitable
+
+
+class WorkUnit(AbstractJob):
+    """
+    Workunits are subtask requests that can be distributed by pydra.  A
+    workunit is generally the smallest unit of work for a task.  This
+    model represents key data points about them.
+    
+    workunit:  key that uniquely identifies this workunit within the 
+                datasource for the task.  This might also be the data itself
+                depending on how the key was initialized
+    """
+    task_instance = models.ForeignKey(TaskInstance, related_name='workunits')
+    workunit      = models.CharField(max_length=255)
+    size          = models.IntegerField(default=1)
+    batch         = models.ForeignKey(Batch, null=True)
+
+    def __getattribute__(self, key):
+        if key == 'task_id':
+            return self.task_instance.id
+        elif key == 'on_main_worker':
+            return self.task_instance.worker == self.worker
+        return super(WorkUnit, self).__getattribute__(key)
+
+    def json_safe(self):
+        return {
+            'subtask_key':self.subtask_key,
+            'workunit_key':self.workunit,
+            'args':self.args,
+            'started':self.started.strftime('%Y-%m-%d %H:%m:%S') \
+                                                    if self.started else None,
+            'completed':self.completed.strftime('%Y-%m-%d %H:%m:%S') \
+                                                if self.completed else None,
+            'worker':self.worker,
+            'status':self.status,
+            'log_retrieved':self.log_retrieved
+        }
+
+    def transmitable(self):
+        return {self.subtask_key:[self.workunit]}
