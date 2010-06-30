@@ -218,6 +218,11 @@ class TaskInstance(AbstractJob):
         batch.task_instance = self
         batch.size = count
 
+        #add batch relation to all workunits
+        for workunit in workunits:
+            workunit.batch = batch
+            workunit.save()
+
         batch.subtask_key = workunits[0].subtask_key
         return batch
     
@@ -313,6 +318,7 @@ class WorkUnit(AbstractJob):
     task_instance = models.ForeignKey(TaskInstance, related_name='workunits')
     workunit      = models.CharField(max_length=255)
     size          = models.IntegerField(default=1)
+    batch         = models.ForeignKey(Batch, null=True)
 
     def __getattribute__(self, key):
         if key == 'task_id':
