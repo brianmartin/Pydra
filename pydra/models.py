@@ -314,6 +314,7 @@ class Batch(AbstractJob):
     """
     task_instance = models.ForeignKey(TaskInstance, related_name='batches')
     size          = models.IntegerField(default=1)
+    workunit      = True #for compatibility with node_status
 
     def __init__(self, iterator=None):
         if iterator:
