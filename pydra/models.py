@@ -344,15 +344,6 @@ class Batch(AbstractJob):
     def __getitem__(self, key):
         return self.workunits[key]
     
-    def __setattr__(self, key, value):
-        """
-        Overridden to save values in contained WorkUnits as well.
-        """
-        super(Batch, self).__setattr__(key, value)
-        if key in ('worker', 'started', 'completed'):
-            for workunit in self.workunits.values():
-                workunit.__dict__[key] = value
-    
     def __str__(self):
         return 'Batch: %s @ %s' % (self.workunits.keys(), self.worker)
     
@@ -393,14 +384,23 @@ class WorkUnit(AbstractJob):
     batch         = models.ForeignKey(Batch, null=True)
 
     def __getattribute__(self, key):
-        if key == 'task_id':
+        #if this WorkUnit is part of a batch defer to those attributes.
+        if key in ('worker', 'started', 'completed'):
+            try:
+                return self.batch.__getattribute__(key)
+            except AttributeError, e:
+                pass
+
+        elif key == 'task_id':
             return self.task_instance.id
+
         elif key == 'on_main_worker':
             return self.task_instance.worker == self.worker
+
         return super(WorkUnit, self).__getattribute__(key)
 
     def json_safe(self):
-        return {
+        ret = {
             'subtask_key':self.subtask_key,
             'workunit_key':self.workunit,
             'args':self.args,
@@ -412,6 +412,13 @@ class WorkUnit(AbstractJob):
             'status':self.status,
             'log_retrieved':self.log_retrieved
         }
+
+        if batch:
+            for attr in ('worker', 'started', 'completed'):
+                ret[attr] = batch.__getattribute__(attr)
+            logger.info("JSON SAFE BATCH MOD: %s" % str(ret))
+
+        return ret
 
     def transmitable(self):
         return {self.subtask_key:[self.workunit]}
