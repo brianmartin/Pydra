@@ -86,6 +86,8 @@ class WorkerTaskControls(Module):
         self.__results = None
         self.__batch = None
 
+        self.subtask_worker_keys = set()
+
         # shutdown tracking
         self.__pending_releases = 0
         self.__pending_shutdown = False
@@ -384,12 +386,15 @@ class WorkerTaskControls(Module):
         """
         if not self.__task_instance.STOP_FLAG:
             logger.info('received REMOTE results for: %s' % subtask_key)
+
+            #keep track of all workers that have given results (needed for ParallelTask)
+            self.subtask_worker_keys.add(worker_key)
+                
             subtask = self.__task_instance.get_subtask(subtask_key.split('.'))
             for key, result, failed in results:
                 if failed:
                     continue
                 subtask.parent._work_unit_complete(result, key)
-
 
     def release_worker(self):
         """
@@ -429,7 +434,15 @@ class WorkerTaskControls(Module):
             deferred = self.master.callRemote('request_worker_release')
             deferred.addCallback(self.release_request_successful)
 
-
+    def request_subtask_workers_release(self):
+        with self._lock:
+            #one less because the main_worker does not require release
+            self.__pending_releases += len(self.subtask_worker_keys) - 1
+            for x in range(len(self.subtask_worker_keys) - 1):
+                logger.debug('ParallelTask - releasing a worker')
+                deferred = self.master.callRemote('request_worker_release')
+                deferred.addCallback(self.release_request_successful)
+            
     def release_request_successful(self, results):
         """
         A worker release request was successful

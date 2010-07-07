@@ -167,8 +167,7 @@ class ParallelTask(Task):
             # the queue the waiting worker will be selected automatically by
             # the scheduler.  Releasing it must be explicit though.
             if not self._data_in_progress:
-                self.logger.debug('ParallelTask - releasing a worker')
-                self.get_worker().request_worker_release()
+                self.get_worker().request_subtask_workers_release()
 
             self._workunit_completed += 1
 
