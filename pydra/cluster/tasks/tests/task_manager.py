@@ -31,28 +31,7 @@ import pydra_settings
 from pydra.cluster.tasks import TaskNotFoundException, packaging
 from pydra.cluster.tasks.task_manager import TaskManager
 from pydra.models import TaskInstance
-from pydra.util.dir_tools import init_dir
-
-def suite():
-    """
-    Build a test suite from all the test suites in this module
-    """
-    task_manager_suite = unittest.TestSuite()
-    task_manager_suite.addTest(TaskManager_Test('test_init_cache'))
-    task_manager_suite.addTest(TaskManager_Test('test_init_package'))
-    task_manager_suite.addTest(TaskManager_Test('test_init_package_empty_package'))
-    task_manager_suite.addTest(TaskManager_Test('test_init_package_multiple_versions'))
-    task_manager_suite.addTest(TaskManager_Test('test_autodiscover'))
-    task_manager_suite.addTest(TaskManager_Test('test_add_package'))
-    task_manager_suite.addTest(TaskManager_Test('test_add_package_with_dependency'))
-    task_manager_suite.addTest(TaskManager_Test('test_add_package_with_missing_dependency'))
-    task_manager_suite.addTest(TaskManager_Test('test_retrieve_task'))
-    task_manager_suite.addTest(TaskManager_Test('test_lazy_init'))
-    task_manager_suite.addTest(TaskManager_Test('test_lazy_init_with_dependency'))
-    task_manager_suite.addTest(TaskManager_Test('test_lazy_init_with_missing_dependency'))   
-    return task_manager_suite
-
-
+from pydra.util import makedirs
 
 class TaskManager_Test(unittest.TestCase):
 
@@ -67,14 +46,12 @@ class TaskManager_Test(unittest.TestCase):
             self.completion[task] = None
 
         # setup manager with an internal cache we can alter
-        self.manager = TaskManager(None, True)
-        self.tasks_dir_internal = '/var/lib/pydra/test_tasks_internal'
-        init_dir(self.tasks_dir_internal)
-        self.manager.tasks_dir_internal = self.tasks_dir_internal
+        self.manager = TaskManager(None, lazy_init=True)
+        pydra_settings.TASK_DIR_INTERNAL = '/var/lib/pydra/test_tasks_internal'
 
         # find at least one task package to use for testing
         self.package = 'demo'
-        self.package_dir = '%s/%s' % (self.tasks_dir_internal, self.package)
+        self.package_dir = '%s/%s' % (self.manager.tasks_dir_internal, self.package)
 
         self.task_instances = []
         for task in self.tasks [:2]:
@@ -114,36 +91,18 @@ class TaskManager_Test(unittest.TestCase):
         for task in self.task_instances:
             task.delete()
         self.clear_cache()
-        os.rmdir(self.tasks_dir_internal)
-        pass
-
-
-    def test_listtasks(self):
-        """
-        Tests list tasks function to verify it returns all the tasks that it should
-        """
-        self.create_cache_entry()
-        self.manager.init_task_cache()
-        tasks = self.manager.list_tasks()
-        self.assertEqual(len(tasks), 6, "There should be 3 registered tasks")
-
-        for task in self.tasks:
-            self.assert_(tasks.has_key(task), 'Task is missing from list tasks')
-            recorded_time = self.completion[task]
-            recorded_time = time.mktime(recorded_time.timetuple()) if recorded_time else None
-            list_time = tasks[task]['last_run']
-            self.assertEqual(recorded_time, list_time, "Completion times for task don't match: %s != %s" % (recorded_time, list_time))
-
+        os.removedirs(self.manager.tasks_dir_internal)
 
 
     def create_cache_entry(self, hash='FAKE_HASH'):
         """
         Creates an entry in the task_cache_internal
         """
-        internal_folder = os.path.join(self.tasks_dir_internal,
+        internal_folder = os.path.join(self.manager.tasks_dir_internal,
                     self.package, hash)
         pkg_dir = '%s/%s' % (pydra_settings.TASKS_DIR, self.package)
-        init_dir(pkg_dir)
+
+        makedirs(pkg_dir)
         shutil.copytree(pkg_dir, internal_folder)
         
         
@@ -163,7 +122,31 @@ class TaskManager_Test(unittest.TestCase):
         if os.path.exists(self.package_dir):
             for version in os.listdir(self.package_dir):
                 shutil.rmtree('%s/%s' % (self.package_dir, version))
-    
+
+
+    def test_trivial(self):
+        """
+        Test the basic init and teardown of the test harness and TaskManager.
+        """
+        pass
+
+
+    def test_listtasks(self):
+        """
+        Tests list tasks function to verify it returns all the tasks that it should
+        """
+        self.create_cache_entry()
+        self.manager.init_task_cache()
+        tasks = self.manager.list_tasks()
+        self.assertEqual(len(tasks), 6, "There should be 3 registered tasks")
+
+        for task in self.tasks:
+            self.assert_(tasks.has_key(task), 'Task is missing from list tasks')
+            recorded_time = self.completion[task]
+            recorded_time = time.mktime(recorded_time.timetuple()) if recorded_time else None
+            list_time = tasks[task]['last_run']
+            self.assertEqual(recorded_time, list_time, "Completion times for task don't match: %s != %s" % (recorded_time, list_time))
+
 
     def test_init_cache_empty_cache(self):
         self.manager.init_task_cache()
@@ -284,3 +267,6 @@ class RetrieveHelper():
         
     def errback(self):
         pass
+
+if __name__ == "__main__":
+    unittest.main()

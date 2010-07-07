@@ -31,6 +31,7 @@ from logger import task_log_path
 from pydra.models import TaskInstance, WorkUnit
 from pydra.cluster.module import Module
 from pydra.cluster.tasks import STATUS_CANCELLED, STATUS_FAILED, STATUS_COMPLETE
+from pydra.util import makedirs
 
 STATUSES = (STATUS_FAILED, STATUS_CANCELLED, STATUS_COMPLETE)
 
@@ -125,6 +126,10 @@ class MasterLogAggregator(Module):
         @param subtask - task path for subtask, default=None
         @param workunit - id of workunit, default=None
         """
+        if worker not in self.workers:
+            logger.debug("Can't aggregate logs for unknown worker %s" % worker)
+            return
+
         key = (task, subtask, workunit)
         with self.transfer_lock:
             if key in self.transfers:
@@ -149,14 +154,22 @@ class MasterLogAggregator(Module):
         @param workunit - id of workunit, default=None
         """
         logger.debug('Receiving Log: %s %s %s' % (task, subtask, workunit))
+
+        if not response:
+            logger.debug("Bogus log: %s %s %s" % (task, subtask, workunit))
+            return
         log = zlib.decompress(response)
-        dir, path = task_log_path(task, subtask, workunit)
-        
-        if not os.path.exists(dir):
-            os.mkdir(dir)
-        elif os.path.exists(path):
-            os.remove(path)
-        out = open(path ,'w')
+
+        d, path = task_log_path(task, subtask, workunit)
+
+        try:
+            makedirs(d)
+        except OSError:
+            # Couldn't make our path to our log; give up.
+            logger.debug("Couldn't recieve log: %s %s %s"
+                % (task, subtask, workunit))
+            return
+        out = open(path, 'w')
         out.write(log)
         
         # mark log as received
@@ -199,15 +212,15 @@ class NodeLogAggregator(Module):
         @param subtask - task path for subtask, default=None
         @param workunit - id of workunit, default=None
         """
-        dir, path = task_log_path(task, subtask, workunit, worker)
-        if os.path.exists(path):
+        d, path = task_log_path(task, subtask, workunit, worker)
+        try:
             logger.debug('Sending Log: %s' % path)
             log = open(path, 'r')
             text = log.read()
             compressed = zlib.compress(text)
             return compressed
-        else:
-            raise Exception(path)
+        except IOError:
+            logger.debug("Couldn't send log: %s" % path)
     
     
     def delete_log(self, master, worker, task, subtask=None, workunit=None):
@@ -219,11 +232,13 @@ class NodeLogAggregator(Module):
         @param subtask - task path for subtask, default=None
         @param workunit - id of workunit, default=None
         """
-        dir, path = task_log_path(task, subtask, workunit, worker)
-        if os.path.exists(path):
-            logger.debug('Deleting Log: %s' % path)
-            # synchronize deletes to ensure directory gets deleted
-            with self.delete_lock:
+        d, path = task_log_path(task, subtask, workunit, worker)
+        logger.debug('Deleting Log: %s' % path)
+        # synchronize deletes to ensure directory gets deleted
+        with self.delete_lock:
+            try:
+                # Remove the log and any directories emptied in the process
                 os.remove(path)
-                if not os.listdir(dir):
-                    os.rmdir(dir)
+                os.removedirs(d)
+            except os.error:
+                pass

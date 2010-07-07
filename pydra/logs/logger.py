@@ -22,13 +22,13 @@ from __future__ import with_statement
 import logging
 import logging.handlers
 from logging import FileHandler
+import os
 from threading import Lock
 
 import pydra_settings as settings
-from pydra.util import init_dir
+from pydra.util import makedirs
 
 LOG_FORMAT = "%%(asctime)s [%%(levelname)s] %s %%(message)s"
-LOG_FORMAT_TASK = "%(asctime)s [%(levelname)s] %(message)s"
 
 INITED_FILES = []
 INIT_LOCK = Lock()
@@ -122,19 +122,18 @@ def get_task_logger(worker, task, subtask=None, workunit=None):
                          own log file so that the log can be read separately.
                          This is separate from the task instance log.
     """
-    directory, filename = task_log_path(task, subtask, workunit, worker)    
-    init_dir(directory)
+    directory, filename = task_log_path(task, subtask, workunit, worker)
+    makedirs(directory)
+
+    logger_name = 'task.%s' % task
 
     if workunit:
-        logger_name = 'workunit.%s.%s' % (task, workunit)
-
-    else:
-        logger_name = 'task.%s' % task
+        logger_name += '.%s' % workunit
 
     logger = logging.getLogger(logger_name)
     handler = FileHandler(filename)
     
-    formatter = logging.Formatter(LOG_FORMAT_TASK)
+    formatter = logging.Formatter(LOG_FORMAT % ("[%s]" % worker))
     handler.setFormatter(formatter)
     logger.addHandler(handler)
     logger.setLevel(settings.LOG_LEVEL)

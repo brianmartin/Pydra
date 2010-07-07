@@ -70,21 +70,11 @@ class Task(object):
         self._status = STATUS_COMPLETE
 
         if self.__callback:
-            logger.debug('[%s] %s - Task._work() -Making callback' % (self.get_worker().worker_key, self))
+            self.logger.debug('%s - Task._work() -Making callback' % self)
             self.__callback(results, **self._callback_args)
         else:
-            logger.warning('[%s] %s - Task._work() - NO CALLBACK TO MAKE: %s' % (self.get_worker().worker_key, self, self.__callback))
-
-
-    def _generate_key(self):
-        """
-        Generate the key for this task using a recursive algorithm.
-        """
-        key = self.__class__.__name__
-        base = self.parent.get_key()
-        if base:
-            key = '%s.%s' % (base, key)
-        return key
+            self.logger.warning('%s - Task._work() - NO CALLBACK TO MAKE: %s'
+                % (self, self.__callback))
     
 
     def _get_subtask(self, task_path, clean=False):
@@ -165,11 +155,16 @@ class Task(object):
 
     def get_key(self):
         """
-        Get the key that represents this task instance.  This key will give
-        the path required to find it if iterating from the root of the task.
-        This is used so that subtasks can be selected.
+        A unique key that represents this task instance.
+
+        This key can be used to find this task from its root. The primary
+        purpose of these keys are to find subtasks.
         """
-        return self._generate_key()
+        key = self.__class__.__name__
+        base = self.parent.get_key()
+        if base:
+            key = '%s.%s' % (base, key)
+        return key
 
 
     def get_subtask(self, task_path, clean=False):
@@ -234,13 +229,13 @@ class Task(object):
 
         #if this was subtask find it and execute just that subtask
         if subtask_key:
-            logger.debug('[%s] Task - starting subtask %s' % (self.get_worker().worker_key,subtask_key))
+            self.logger.debug('Task - starting subtask %s' % subtask_key)
             split = subtask_key.split('.')
             subtask = self.get_subtask(split, True)
             subtask.logger = get_task_logger(self.get_worker().worker_key, \
                                              task_id, \
                                              subtask_key, workunit)
-            logger.debug('[%s] Task - got subtask'%self.get_worker().worker_key)
+            self.logger.debug('Task - got subtask')
             self.work_deferred = threads.deferToThread(subtask._start, args, \
                                             callback, callback_args)
 
@@ -250,7 +245,7 @@ class Task(object):
         
         else:
             #else this is a normal task just execute it
-            logger.debug('[%s] Task - starting task: %s' % (self.get_worker().worker_key,self))
+            self.logger.debug('Task - starting task: %s' % self)
             self.work_deferred = threads.deferToThread(self._start, args, callback, callback_args)
 
         if errback:
@@ -299,8 +294,21 @@ class Task(object):
         return self._status
 
 
-    def work(self, **kwargs):
+    def work(self, *args, **kwargs):
         """
-        Function to be overrided by users to perform the real work
+        Do the actual computation of the task.
+
+        This method is abstract and must be implemented by any subclasses.
         """
-        pass
+        raise NotImplementedError
+
+
+    def progress(self):
+        """
+        Return the current progress of the task, as an integer between 0 and
+        100.
+
+        The default implementation returns 100 if the task is finished and 0
+        otherwise.
+        """
+        return 100 if self.status == STATUS_COMPLETE else 0
