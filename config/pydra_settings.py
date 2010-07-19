@@ -6,15 +6,15 @@ TEMPLATE_DEBUG = DEBUG
 
 # Base directory for storing all files created at runtime
 # this includes encryption keys, logs, tasks, etc
-RUNTIME_FILES_DIR = '/var/lib/pydra'
+RUNTIME_FILES_DIR = '/home/simpson/pydra/lib'
 
 # Directory where process ids are stored.
-RUNTIME = '/var/run/pydra'
+RUNTIME = '/home/simpson/pydra/run'
 
 
 
-DATABASE_ENGINE = 'mysql'      # 'postgresql_psycopg2', 'postgresql', 'mysql', 'sqlite3' or 'oracle'.
-DATABASE_NAME = 'pydra'        # Or path to database file if using sqlite3.
+DATABASE_ENGINE = 'sqlite3'      # 'postgresql_psycopg2', 'postgresql', 'mysql', 'sqlite3' or 'oracle'.
+DATABASE_NAME = '/home/simpson/pydra/pydra.sqlite' # Or path to database file if using sqlite3.
 DATABASE_USER = 'pydra'        # Not used with sqlite3.
 DATABASE_PASSWORD = 'pydra'    # Not used with sqlite3.
 DATABASE_HOST = ''             # Set to empty string for localhost. Not used with sqlite3.
@@ -22,7 +22,7 @@ DATABASE_PORT = ''             # Set to empty string for default. Not used with 
 
 
 # absolute path to the docroot of this site
-DOC_ROOT = '/home/peter/wrk/pydra/pydra_site'
+DOC_ROOT = '/home/simpson/pydra/pydra_site'
 
 # Local time zone for this installation. Choices can be found here:
 # http://en.wikipedia.org/wiki/List_of_tz_zones_by_name
@@ -57,7 +57,7 @@ INSTALLED_APPS = (
 #Logging
 import logging
 LOG_LEVEL = logging.DEBUG
-LOG_DIR = '/var/log/pydra'
+LOG_DIR = '/home/simpson/pydra/log'
 LOG_FILENAME_MASTER = '%s/master.log' % LOG_DIR
 LOG_FILENAME_NODE   = '%s/node.log' % LOG_DIR
 LOG_SIZE = 10000000
