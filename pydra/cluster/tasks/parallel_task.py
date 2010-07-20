@@ -25,21 +25,23 @@ from twisted.internet import reactor, threads
 
 from pydra.cluster.tasks import Task, TaskNotFoundException, STATUS_CANCELLED,\
     STATUS_FAILED,STATUS_STOPPED,STATUS_RUNNING,STATUS_PAUSED,STATUS_COMPLETE
+from pydra.cluster.tasks.datasource import DataSource
 from pydra.util.key import thaw
 
 class ParallelTask(Task):
     """
     ParallelTask - is a task that can be broken into discrete work units
     """
-    _data = None                # list of data for this task
     _data_in_progress = {}      # workunits of data
-    _workunit_count = 0         # count of workunits handed out.  This is used to identify transactions
+    _workunit_count = 1         # count of workunits handed out.  This is used to identify transactions
     _workunit_total = 0
     _workunit_completed = 0     # count of workunits handed out.  This is used to identify transactions
     subtask_key = None          # cached key from subtask
-    _ds = None                  # Datasource slicer.
 
-    def __init__(self, msg=None, datasource=None):
+    datasource = None
+    """The datasource description."""
+
+    def __init__(self, msg=None):
         Task.__init__(self, msg)
         self._lock = RLock()             # general lock
         self.subtask = None              # subtask that is parallelized
@@ -47,8 +49,7 @@ class ParallelTask(Task):
         self.__subtask_args = None       # args for initializing subtask
         self.__subtask_kwargs = None     # kwargs for initializing subtask
 
-        if datasource:
-            self._ds = thaw(datasource)
+        self.datasource = DataSource(self.datasource)
 
         self.logger = logging.getLogger('root')
 
@@ -95,21 +96,47 @@ class ParallelTask(Task):
         return task_path[:2], subtask
 
 
-    def _request_workers(self):
+    def request_workers(self):
         """
-        Requests workers to process workunits
-    
-        expand all the work units eagerly. the master will handles these
-        worker requests. other task implementations (like MapReduceTask) may
-        employ a more sophisticated mechanism that allows dependence between
-        work units.
-        """        
-        data, index = self.get_work_unit()
-        while data is not None:
+        Create work requests for all planned subtasks.
+
+        This function eagerly creates all planned work requests in one shot,
+        using `get_work_units()` to create all work units.
+
+        More complex `Task` subclasses, like `MapReduceTask`, may employ a
+        more sophisticated algorithm that permits cross worker dependencies.
+        """
+
+        for data, index in self.get_work_units():
             self.logger.debug('Paralleltask - assigning remote work: key=%s, args=%s'
                 % ('--', index))
-            self.parent.request_worker(self.subtask.get_key(), {'data':data}, index)
-            data, index = self.get_work_unit()
+            self.parent.request_worker(self.subtask.get_key(), {'data': data},
+                index)
+
+
+    def get_work_units(self):
+        """
+        Yield a series of work units.
+
+        This function returns *all* work units, one by one. For each work
+        unit, the data of the unit is stored in `_data_in_progress`.
+
+        Warning: This method will take the instance lock as needed, but should
+        not be locked during yields.
+
+        :return: tuple(data, index)
+        """
+        # XXX needs to have a delayable path as well
+        slicer = self.datasource.unpack()
+
+        while True:
+            data, index = next(slicer), self._workunit_count
+
+            yield data, index
+
+            with self._lock:
+                self._workunit_count += 1
+                self._data_in_progress[index] = data
 
 
     def _stop(self):
@@ -124,13 +151,8 @@ class ParallelTask(Task):
         """
         Work function overridden to delegate workunits to other Workers.
         """
-        # save data, if any
-        if kwargs and kwargs.has_key('data'):
-            self._data = kwargs['data']
-            self._workunit_total = len(self._data)
-            self.logger.debug('Paralleltask - data was passed in!')
         # request initial workers
-        self._request_workers()
+        self.request_workers()
         self.logger.debug('Paralleltask - initial work assigned!')
 
 
@@ -159,10 +181,6 @@ class ParallelTask(Task):
             if self.STOP_FLAG:
                 self.task_complete(None)
 
-            # process any new work requests.  This moves any data that can be
-            # queued into the queue, and into the in_progress list locally
-            self._request_workers()
-
             # no data left in progress, release 1 worker.  when there is work in
             # the queue the waiting worker will be selected automatically by
             # the scheduler.  Releasing it must be explicit though.
@@ -172,7 +190,7 @@ class ParallelTask(Task):
             self._workunit_completed += 1
 
             #check for more work
-            if not (self._data_in_progress or self._data):
+            if not self._data_in_progress:
                 #all work is done, call the task specific function to combine the results 
                 self.logger.debug('Paralleltask - all workunits complete, calling task post process')
                 results = self.work_complete()
@@ -189,8 +207,6 @@ class ParallelTask(Task):
             #remove data from in progress
             data = self._data_in_progress[index]
             del self._data_in_progress[index]
-            #add data to the end of the list
-            self._data.append(data)
 
 
     @staticmethod
@@ -204,30 +220,6 @@ class ParallelTask(Task):
         return pt
 
 
-    def get_work_unit(self):
-        """
-        Get the next work unit, by default a ParallelTask expects a list of values/tuples.
-        When a arg is retrieved its removed from the list and placed in the in progress list.
-        The arg is saved so that if the node fails the args can be re-run on another node
-
-        This method *MUST* lock while it is altering the lists of data
-        """
-        data = None
-        with self._lock:
-
-            #grab from the beginning of the list
-            if len(self._data) != 0:
-                data = self._data.pop(0)
-            else:
-                return None, None
-
-            self._workunit_count += 1
-
-            #remove from _data and add to in_progress
-            self._data_in_progress[self._workunit_count] = data
-        return data, self._workunit_count;
-
-
     def progress(self):
         """
         progress - returns the progress as a number 0-100.
@@ -235,9 +227,7 @@ class ParallelTask(Task):
         A parallel task's progress is a derivitive of its workunits:
            COMPLETE_WORKUNITS / TOTAL_WORKUNITS
         """
-        data = len(self._data) if self._data else 0
-        total = self._workunit_completed + data + \
-            len(self._data_in_progress)
+        total = self._workunit_completed + len(self._data_in_progress)
 
         if total == 0:
             return 0
@@ -258,13 +248,22 @@ class ParallelTask(Task):
     def start_subtask(self, task, subtask_key, workunit, kwargs, callback, \
                       callback_args):
         """
-        Overridden to retrieve input arguments from datastore self.input.  These
-        values are added to kwargs and passed to the subtask.  values in the
-        workunit take preference over values in kwargs
+        Launch a specified subtask.
+
+        Only called from the subtask's `Worker`, as the final step before
+        actually letting the subtask do its work.
+
+        :Parameters:
+            task : `Task`
+                The subtask instance to be run.
+            workunit : dict
+                The keyword arguments to be passed to the task.
         """
-        # TODO: code after datasource update
-        #args, kwargs = self.input.unpack(workunit, (), kwargs)
-        #task._start(args, kwargs, callback, callback_args)
+
+        # Delayable?
+        if self.datasource.delayable:
+            workunit["data"] = self.datasource.unpack()
+
         task._start(workunit, callback, callback_args)
 
 
