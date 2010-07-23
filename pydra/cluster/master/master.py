@@ -23,6 +23,7 @@ from pydra.cluster.module import ModuleManager
 from pydra.cluster.master import *
 from pydra.cluster.master.task_sync import TaskSyncServer
 from pydra.cluster.tasks.task_manager import TaskManager
+from pydra.cluster.master.statistics import StatisticsModule
 
 
 import pydra_settings
@@ -52,6 +53,7 @@ class Master(ModuleManager):
             TaskManager,
             TaskSyncServer,
             TaskScheduler,
+	    StatisticsModule,
             TwistedWebInterface,
             NodeManager,
             MasterLogAggregator
