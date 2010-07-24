@@ -41,32 +41,43 @@ class StatisticsModule(Module):
             self.stats,
         ]
 
+        self.sums = {}
+        self.index = 0
+
     def _register(self, manager):
         Module._register(self, manager)
         reactor.callLater(2, self.stats)
 
     def stats(self, callback=None):
-        tasks = TaskInstance.objects.all()
-        sums = {}
+        tasks = TaskInstance.objects.exclude(completed=None)[self.index:]
+        self.index += tasks.count()
         for task in tasks: 
             try:
-                sums[task.task_key]
+                self.sums[task.task_key]
             except KeyError:
-                sums[task.task_key] = {'num_completed': 0, 'summed_time': 0, \
-                                       'summed_squared_time': 0}
-            if task.completed:
-                time_delta = (task.completed - task.started).seconds
-                sums[task.task_key]['summed_time'] += time_delta
-                sums[task.task_key]['summed_squared_time'] += time_delta**2
-                sums[task.task_key]['num_completed'] += 1
+                self.sums[task.task_key] = {'num_completed': 0, 'summed_time': 0, \
+                                            'summed_squared_time': 0, 'min': -1, 'max': -1}
+            time_delta = (task.completed - task.started).seconds
 
+            # max
+            if time_delta > self.sums[task.task_key]['max']:
+                self.sums[task.task_key]['max'] = time_delta
+
+            # min
+            if time_delta < self.sums[task.task_key]['min'] or self.sums[task.task_key]['min'] == -1:
+                self.sums[task.task_key]['min'] = time_delta
+
+            # sums
+            self.sums[task.task_key]['summed_time'] += time_delta
+            self.sums[task.task_key]['summed_squared_time'] += time_delta**2
+            self.sums[task.task_key]['num_completed'] += 1
+
+        # standard deviation
         # TODO: optimize by switching to a running variance/stddev calculation
-        for task, values in sums.items():
-            sums[task]['std_dev'] = sqrt((sums[task]['summed_squared_time'] - (sums[task]['summed_time']**2 \
-                                        / sums[task]['num_completed'])) / (sums[task]['num_completed'] - 1))    
+        for task, values in self.sums.items():
+            if self.sums[task]['num_completed'] - 1:
+                self.sums[task]['std_dev'] = sqrt((self.sums[task]['summed_squared_time'] - (self.sums[task]['summed_time']**2 \
+                                            / self.sums[task]['num_completed'])) / (self.sums[task]['num_completed'] - 1))    
 
-        logger.info("task stats: %s" % str(sums))
-        self.recall()
-
-    def recall(self):
+        logger.info("task stats: %s" % str(self.sums))
         reactor.callLater(2, self.stats)
