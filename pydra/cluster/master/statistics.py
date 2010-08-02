@@ -58,55 +58,61 @@ class StatisticsModule(Module):
         Returns task statistics given the task key.
         """
 
+        # if it's a new task initialize the index
         try: 
             self.indices[task_key]
         except KeyError:
             self.indices[task_key] = 0
 
-        tasks = TaskInstance.objects.filter(task_key=task_key).exclude(completed=None)[self.indices[task_key]:]
-        #if the task has been run since the last update, do:
-        if tasks:
-            self.indices[task_key] += tasks.count()
-            for task in tasks: 
-                workunits = WorkUnit.objects.filter(task_instance=task)
-                try:
-                    self.sums[task_key]
-                except KeyError:
-                    self.sums[task_key] = {'num_completed': 0, 'avg': 0, 'M2': 0, 'min': -1, 'max': -1, \
+        # get task stats data (or initialize)
+        try:
+            stats = self.sums[task_key]
+        except KeyError:
+            stats = self.sums[task_key] = {'num_completed': 0, 'avg': 0, 'M2': 0, 'min': -1, 'max': -1, \
                                            'variance': -1, 'std_dev': 0, 'workunits': ''}
 
-                self.sums[task_key]['workunits'] = workunits
+        # get the task_instances that have completed since statistics were last calculated
+        task_instances = TaskInstance.objects.filter(task_key=task_key).exclude(completed=None)[self.indices[task_key]:]
 
-                time_delta = (task.completed - task.started).seconds
+        #if the task has been run since the last update, do:
+        if task_instances:
+            # keep track of where we left off
+            self.indices[task_key] += task_instances.count()
+            for task_instance in task_instances:
+                self.tick_stats((task_instance.completed - task_instance.started).seconds, stats)
+            stats['std_dev'] = sqrt(stats['variance'])
 
-                # max
-                self.sums[task_key]['max'] = max(time_delta, self.sums[task_key]['max'])
+            return stats
 
-                # min
-                self.sums[task_key]['min'] = time_delta if self.sums[task_key]['min'] == -1 \
-                                                        else min(time_delta, self.sums[task_key]['min'])
-
-                # number completed
-                self.sums[task_key]['num_completed'] += 1
-
-                # running average using deviation from average (also used for online variance calculation)
-                delta = time_delta - self.sums[task_key]['avg']
-                self.sums[task_key]['avg'] = self.sums[task_key]['avg'] + delta / self.sums[task_key]['num_completed']
-
-                # online variance
-                self.sums[task_key]['M2'] = self.sums[task_key]['M2'] + delta * (time_delta - self.sums[task_key]['avg'])
-                if self.sums[task_key]['num_completed'] - 1:
-                    self.sums[task_key]['variance'] = self.sums[task_key]['M2'] / (self.sums[task_key]['num_completed'] - 1)
-
-            # standard deviation from variance
-            self.sums[task_key]['std_dev'] = sqrt(self.sums[task_key]['variance'])
-
-            return self.sums[task_key]
-
+        # otherwise, no new info
         else:
-            try:
-                # if previously calculated stats exist return them
-                return self.sums[task_key]
-            except KeyError:
+            if not stats:
                 logger.info("%s has not yet been run or is not yet completed." % task_key)
-                return {}
+            return stats
+
+    def tick_stats(self, x, stats):
+        """
+        Adds one input, x, to the dictionary of stats given.
+        """
+        # max
+        stats['max'] = max(x, stats['max'])
+        # min
+        stats['min'] = x if stats['min'] == -1 else min(x, stats['min'])
+        # number completed
+        stats['num_completed'] += 1
+        # running average using deviation from average (also used for online variance calculation)
+        delta = x - stats['avg']
+        stats['avg'] = stats['avg'] + delta / stats['num_completed']
+        # online variance
+        stats['M2'] = stats['M2'] + delta * (x - stats['avg'])
+        if stats['num_completed'] - 1:
+            stats['variance'] = stats['M2'] / (stats['num_completed'] - 1)
+
+
+    def workunit_stats(self, task_key):
+        """
+        Returns statistics by workunit given the task key.
+        """
+
+        assoc_task = TaskInstance.objects.filter(task_key=task_key)
+        workunits = WorkUnit.objects.filter(task_instance=assoc_task)
