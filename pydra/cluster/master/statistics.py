@@ -34,7 +34,7 @@ class StatisticsModule(Module):
     def __init__(self):
         self._interfaces = [
             self.calc,
-            self.stats,
+            self.task_stats,
         ]
 
         self.sums = {}
@@ -49,11 +49,11 @@ class StatisticsModule(Module):
         Recalculates stats for all unique tasks that have been run.
         """
         for task_key in set(TaskInstance.objects.values_list('task_key')): 
-            results = self.stats(task_key[0])
-            logger.info("%s stats: %s" % (task_key[0], results)
-        reactor.callLater(2, self.calc)
+            results = self.task_stats(task_key[0])
+            logger.info("%s stats: %s" % (task_key[0], results))
+        reactor.callLater(2, self.calc) 
 
-    def stats(self, task_key):
+    def task_stats(self, task_key):
         """
         Returns task statistics given the task key.
         """
@@ -68,20 +68,23 @@ class StatisticsModule(Module):
         if tasks:
             self.indices[task_key] += tasks.count()
             for task in tasks: 
+                workunits = WorkUnit.objects.filter(task_instance=task)
                 try:
                     self.sums[task_key]
                 except KeyError:
                     self.sums[task_key] = {'num_completed': 0, 'summed_time': 0, \
-                            'summed_squared_time': 0, 'min': -1, 'max': -1, 'std_dev': -1}
+                            'summed_squared_time': 0, 'min': -1, 'max': -1, 'std_dev': -1, 'workunits': ''}
+
+                self.sums[task_key]['workunits'] = workunits
+
                 time_delta = (task.completed - task.started).seconds
 
                 # max
-                if time_delta > self.sums[task_key]['max']:
-                    self.sums[task_key]['max'] = time_delta
+                self.sums[task_key]['max'] = max(time_delta, self.sums[task_key]['max'])
 
                 # min
-                if time_delta < self.sums[task_key]['min'] or self.sums[task_key]['min'] == -1:
-                    self.sums[task_key]['min'] = time_delta
+                self.sums[task_key]['min'] = time_delta if self.sums[task_key]['min'] == -1 \
+                                                        else min(time_delta, self.sums[task_key]['min'])
 
                 # sums
                 self.sums[task_key]['summed_time'] += time_delta
@@ -102,7 +105,3 @@ class StatisticsModule(Module):
             except KeyError:
                 logger.info("%s has not yet been run or is not yet completed." % task_key)
                 return {}
-
-    def list_workunits(self):
-        for task in TaskInstance.objects.all():
-            logger.info("%s %s" (task.task_key, str(WorkUnit.objects.filter(task_instance=task))))
