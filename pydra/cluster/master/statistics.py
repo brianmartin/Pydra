@@ -72,8 +72,8 @@ class StatisticsModule(Module):
                 try:
                     self.sums[task_key]
                 except KeyError:
-                    self.sums[task_key] = {'num_completed': 0, 'summed_time': 0, \
-                            'summed_squared_time': 0, 'min': -1, 'max': -1, 'std_dev': -1, 'workunits': ''}
+                    self.sums[task_key] = {'num_completed': 0, 'avg': 0, 'M2': 0, 'min': -1, 'max': -1, \
+                                           'variance': -1, 'std_dev': 0, 'workunits': ''}
 
                 self.sums[task_key]['workunits'] = workunits
 
@@ -86,16 +86,21 @@ class StatisticsModule(Module):
                 self.sums[task_key]['min'] = time_delta if self.sums[task_key]['min'] == -1 \
                                                         else min(time_delta, self.sums[task_key]['min'])
 
-                # sums
-                self.sums[task_key]['summed_time'] += time_delta
-                self.sums[task_key]['summed_squared_time'] += time_delta**2
+                # number completed
                 self.sums[task_key]['num_completed'] += 1
 
-            # standard deviation
-            # TODO: optimize by switching to a running stddev calculation
-            if self.sums[task_key]['num_completed'] - 1:
-                self.sums[task_key]['std_dev'] = sqrt((self.sums[task_key]['summed_squared_time'] - (self.sums[task_key]['summed_time']**2 \
-                                                   / self.sums[task_key]['num_completed'])) / (self.sums[task_key]['num_completed'] - 1))    
+                # running average using deviation from average (also used for online variance calculation)
+                delta = time_delta - self.sums[task_key]['avg']
+                self.sums[task_key]['avg'] = self.sums[task_key]['avg'] + delta / self.sums[task_key]['num_completed']
+
+                # online variance
+                self.sums[task_key]['M2'] = self.sums[task_key]['M2'] + delta * (time_delta - self.sums[task_key]['avg'])
+                if self.sums[task_key]['num_completed'] - 1:
+                    self.sums[task_key]['variance'] = self.sums[task_key]['M2'] / (self.sums[task_key]['num_completed'] - 1)
+
+            # standard deviation from variance
+            self.sums[task_key]['std_dev'] = sqrt(self.sums[task_key]['variance'])
+
             return self.sums[task_key]
 
         else:
