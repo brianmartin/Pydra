@@ -33,8 +33,7 @@ class StatisticsModule(Module):
 
     def __init__(self):
         self._interfaces = [
-            self.calc,
-            self.task_stats,
+            self.get_task_stats,
         ]
 
         self.sums = {}
@@ -42,24 +41,55 @@ class StatisticsModule(Module):
 
     def _register(self, manager):
         Module._register(self, manager)
-        reactor.callLater(2, self.calc)
+        reactor.callLater(2, self.calc_all_tasks)
 
-    def calc(self):
-        """
-        Recalculates stats for all unique tasks that have been run.
-        """
-        for task_key in set(TaskInstance.objects.values_list('task_key')): 
-            results = self.task_stats(task_key[0])
-            logger.info("%s stats: %s" % (task_key[0], results))
-        reactor.callLater(2, self.calc) 
-
-    def task_stats(self, task_key):
+    def get_task_stats(self, task_key):
         """
         Returns task statistics given the task key.
         """
+        try:
+            return self.sums[task_key]
+        except KeyError:
+            return {}
 
+
+    def calc_all_tasks(self):
+        """
+        Checks that stat calculations have been initiated for all unique task_key's.
+        """
+        for task_key in set(TaskInstance.objects.values_list('task_key')):
+
+            # if this is a new task then start calculating stats
+            if not self.get_task_stats(task_key[0]):
+                self.task_stats(task_key[0])
+
+            # print stats
+            logger.info("%s stats: %s" % (task_key[0], self.get_task_stats(task_key[0])))
+
+        # call later to recheck for new tasks
+        reactor.callLater(10, self.calc_all_tasks)
+
+
+    def task_stats(self, task_key, delay=3, max_delay=60, backoff=2):
+        """
+        Runs _task_stats repeatedly with delayed backoff
+        """
+        # if new info was added, reset delay:
+        if self._task_stats(task_key):
+            delay = 3
+
+        else:
+            delay = min(max_delay, delay * backoff)
+
+        reactor.callLater(delay, self.task_stats, task_key, delay=delay)
+
+    def _task_stats(self, task_key):
+        """
+        Looks for new TaskInstance's associated with task_key.
+        If found, it updates statistics using tick_stats.
+        """
         # if it's a new task initialize the index
-        try: 
+        try:
             self.indices[task_key]
         except KeyError:
             self.indices[task_key] = 0
@@ -80,15 +110,21 @@ class StatisticsModule(Module):
             self.indices[task_key] += task_instances.count()
             for task_instance in task_instances:
                 self.tick_stats((task_instance.completed - task_instance.started).seconds, stats)
-            stats['std_dev'] = sqrt(stats['variance'])
+            stats['std_dev'] = sqrt(stats['variance']) if stats['variance'] != -1 else -1
 
-            return stats
+            return True
 
         # otherwise, no new info
         else:
-            if not stats:
-                logger.info("%s has not yet been run or is not yet completed." % task_key)
-            return stats
+            return False
+
+    def workunit_stats(self, task_key):
+        """
+        Returns statistics by workunit given the task key.
+        """
+
+        assoc_task = TaskInstance.objects.filter(task_key=task_key)
+        workunits = WorkUnit.objects.filter(task_instance=assoc_task)
 
     def tick_stats(self, x, stats):
         """
@@ -107,12 +143,3 @@ class StatisticsModule(Module):
         stats['M2'] = stats['M2'] + delta * (x - stats['avg'])
         if stats['num_completed'] - 1:
             stats['variance'] = stats['M2'] / (stats['num_completed'] - 1)
-
-
-    def workunit_stats(self, task_key):
-        """
-        Returns statistics by workunit given the task key.
-        """
-
-        assoc_task = TaskInstance.objects.filter(task_key=task_key)
-        workunits = WorkUnit.objects.filter(task_instance=assoc_task)
