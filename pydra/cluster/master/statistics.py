@@ -34,10 +34,15 @@ class StatisticsModule(Module):
     def __init__(self):
         self._interfaces = [
             self.get_task_stats,
+            self.get_all_task_stats,
+            self.get_all_task_stats_json_safe,
         ]
 
-        self.sums = {}
-        self.indices = {}
+        self._task_stat_data = {}
+        self._task_stat_indices = {}
+        self._workunit_stat_data = {}
+        self._workunit_stat_indices = {}
+        self._total_time = 0.0 #in seconds
 
     def _register(self, manager):
         Module._register(self, manager)
@@ -48,10 +53,16 @@ class StatisticsModule(Module):
         Returns task statistics given the task key.
         """
         try:
-            return self.sums[task_key]
+            return self._task_stat_data[task_key]
         except KeyError:
             return {}
 
+    def get_all_task_stats(self):
+        return self._task_stat_data
+
+    def get_all_task_stats_json_safe(self):
+        return [{'id':k, 'percentage': (v['num_completed'] * v['avg']) / self._total_time}\
+                    for k,v in self._task_stat_data.items()]
 
     def calc_all_tasks(self):
         """
@@ -72,7 +83,8 @@ class StatisticsModule(Module):
 
     def task_stats(self, task_key, delay=3, max_delay=60, backoff=2):
         """
-        Runs _task_stats repeatedly with delayed backoff
+        Runs _task_stats repeatedly with delayed rerun
+        (time until next rerun increases by a factor of 'backoff')
         """
         # if new info was added, reset delay:
         if self._task_stats(task_key):
@@ -83,48 +95,49 @@ class StatisticsModule(Module):
 
         reactor.callLater(delay, self.task_stats, task_key, delay=delay)
 
+
     def _task_stats(self, task_key):
         """
         Looks for new TaskInstance's associated with task_key.
         If found, it updates statistics using tick_stats.
         """
-        # if it's a new task initialize the index
+        # if it's a new task initialize the index and data
         try:
-            self.indices[task_key]
+            self._task_stat_indices[task_key]
+            stats = self._task_stat_data[task_key]
         except KeyError:
-            self.indices[task_key] = 0
-
-        # get task stats data (or initialize)
-        try:
-            stats = self.sums[task_key]
-        except KeyError:
-            stats = self.sums[task_key] = {'num_completed': 0, 'avg': 0, 'M2': 0, 'min': -1, 'max': -1, \
+            self._task_stat_indices[task_key] = 0
+            stats = self._task_stat_data[task_key] = {'num_completed': 0, 'avg': 0, 'M2': 0, 'min': -1, 'max': -1, \
                                            'variance': -1, 'std_dev': 0, 'workunits': ''}
 
         # get the task_instances that have completed since statistics were last calculated
-        task_instances = TaskInstance.objects.filter(task_key=task_key).exclude(completed=None)[self.indices[task_key]:]
+        task_instances = TaskInstance.objects.filter(task_key=task_key).exclude(completed=None)[self._task_stat_indices[task_key]:]
 
-        #if the task has been run since the last update, do:
+        #if new instances of the task exist
         if task_instances:
             # keep track of where we left off
-            self.indices[task_key] += task_instances.count()
+            self._task_stat_indices[task_key] += task_instances.count()
             for task_instance in task_instances:
-                self.tick_stats((task_instance.completed - task_instance.started).seconds, stats)
+                time_delta = (task_instance.completed - task_instance.started).seconds
+                self.tick_stats(time_delta, stats)
+                self._total_time += time_delta
             stats['std_dev'] = sqrt(stats['variance']) if stats['variance'] != -1 else -1
 
             return True
 
-        # otherwise, no new info
+        # otherwise no new info
         else:
             return False
+
 
     def workunit_stats(self, task_key):
         """
         Returns statistics by workunit given the task key.
         """
-
+        # TODO
         assoc_task = TaskInstance.objects.filter(task_key=task_key)
         workunits = WorkUnit.objects.filter(task_instance=assoc_task)
+
 
     def tick_stats(self, x, stats):
         """
