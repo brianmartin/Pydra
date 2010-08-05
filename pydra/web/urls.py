@@ -53,6 +53,10 @@ urlpatterns = patterns('',
     (r'^accounts/login/$', login),
     (r'^accounts/logout/$', logout, {'next_page':'/jobs'}),
     (r'^accounts/profile/$', jobs),
+
+    #statistics
+    (r'^stats/tasks/$', task_stats),
+    (r'^stats/tasks/data$', task_stats_data),
 )
 
 # The following is used to serve up local media files like images, css, js

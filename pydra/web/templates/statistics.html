@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+<!--
+    Copyright 2009 Oregon State University
+
+    This file is part of Pydra.
+
+    Pydra is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Pydra is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Pydra.  If not, see <http://www.gnu.org/licenses/>.
+-->
+{% block head %}
+    {{ block.super }}
+    <script src="{{MEDIA_URL}}/js/query.js" type="text/javascript" charset="utf-8"></script>
+    <script src="{{MEDIA_URL}}/js/raphael.js" type="text/javascript" charset="utf-8"></script>
+    <script src="{{MEDIA_URL}}/js/g.raphael-min.js" type="text/javascript" charset="utf-8"></script>
+    <script src="{{MEDIA_URL}}/js/g.pie-min.js" type="text/javascript" charset="utf-8"></script>
+    <style type="text/css" media="screen">
+        #holder {
+                margin: -350px 100 0 -350px;
+                width: 700px;
+                height: 700px;
+                position:relative;
+                }
+    </style>
+{% endblock %}
+
+
+{% block content %}
+    <script type="text/javascript" charset="utf-8">
+        window.onload = function () {
+            var r = Raphael("holder");
+            
+            var pie = r.g.piechart(320, 240, 100, {{ data }}, {legend: {{ labels|safe|escape }}, legendpos: "east", href: []});
+            pie.hover(function () {
+                this.sector.stop();
+                this.sector.scale(1.1, 1.1, this.cx, this.cy);
+                if (this.label) {
+                    this.label[0].stop();
+                    this.label[0].scale(1.5);
+                    this.label[1].attr({"font-weight": 800});
+                }
+            }, function () {
+                this.sector.animate({scale: [1, 1, this.cx, this.cy]}, 500, "bounce");
+                if (this.label) {
+                    this.label[0].animate({scale: 1}, 500, "bounce");
+                    this.label[1].attr({"font-weight": 400});
+                }
+            });
+            
+        };
+    </script>
+
+    <div id="holder"></div>
+
+{% endblock %}

@@ -369,3 +369,13 @@ def kill_worker(request):
         response = e.code
 
     return HttpResponse(response, mimetype='application/javascript')
+
+
+def task_stats(request):
+    """
+    display task stats
+    """
+    c = RequestContext(request, processors=[pydra_processor, settings_processor])
+    stats = pydra_controller.get_all_task_stats_json_safe()
+    return render_to_response('statistics.html', {'labels': [i['id'] for i in stats], 'data': [i['percentage'] for i in stats]}, context_instance=c)
+
