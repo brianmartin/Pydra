@@ -108,7 +108,9 @@ class StatisticsModule(Module):
         except KeyError:
             self._task_stat_indices[task_key] = 0
             stats = self._task_stat_data[task_key] = {'num_completed': 0, 'avg': 0, 'M2': 0, 'min': -1, 'max': -1, \
-                                           'variance': -1, 'std_dev': 0, 'workunits': ''}
+                                                        'variance': -1, 'std_dev': 0, 'sum_time': 0, 'workunits': {}}
+            stats['workunits'] = {'num_completed': 0, 'avg': 0, 'M2': 0, 'min': -1, 'max': -1, \
+                                    'variance': -1, 'std_dev': 0, 'sum_time': 0}
 
         # get the task_instances that have completed since statistics were last calculated
         task_instances = TaskInstance.objects.filter(task_key=task_key).exclude(completed=None)[self._task_stat_indices[task_key]:]
@@ -120,6 +122,7 @@ class StatisticsModule(Module):
             for task_instance in task_instances:
                 time_delta = (task_instance.completed - task_instance.started).seconds
                 self.tick_stats(time_delta, stats)
+                self.workunit_stats(task_instance, stats['workunits'])
                 self._total_time += time_delta
             stats['std_dev'] = sqrt(stats['variance']) if stats['variance'] != -1 else -1
 
@@ -130,19 +133,22 @@ class StatisticsModule(Module):
             return False
 
 
-    def workunit_stats(self, task_key):
+    def workunit_stats(self, task_instance, stats):
         """
-        Returns statistics by workunit given the task key.
+        Calculates statistics of workunits given a TaskInstance.
         """
-        # TODO
-        assoc_task = TaskInstance.objects.filter(task_key=task_key)
-        workunits = WorkUnit.objects.filter(task_instance=assoc_task)
+        workunits = task_instance.workunits.values()
+        for work in workunits:
+           time_delta = (work['completed'] - work['started']).seconds
+           self.tick_stats(time_delta, stats)
 
 
     def tick_stats(self, x, stats):
         """
         Adds one input, x, to the dictionary of stats given.
         """
+        # sum of x's
+        stats['sum_time'] += x
         # max
         stats['max'] = max(x, stats['max'])
         # min
