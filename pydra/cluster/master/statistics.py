@@ -107,10 +107,10 @@ class StatisticsModule(Module):
             stats = self._task_stat_data[task_key]
         except KeyError:
             self._task_stat_indices[task_key] = 0
-            stats = self._task_stat_data[task_key] = {'num_completed': 0, 'avg': 0, 'M2': 0, 'min': -1, 'max': -1, \
-                                                        'variance': -1, 'std_dev': 0, 'sum_time': 0, 'workunits': {}}
-            stats['workunits'] = {'num_completed': 0, 'avg': 0, 'M2': 0, 'min': -1, 'max': -1, \
-                                    'variance': -1, 'std_dev': 0, 'sum_time': 0}
+            stats = self._task_stat_data[task_key] = {'num_completed': 0, 'avg': 0, 'M2': 0.0, 'min': -1, 'max': -1, \
+                                                        'variance': -1, 'std_dev': 0.0, 'sum_time': 0, 'workunits': {}}
+            stats['workunits'] = {'num_completed': 0, 'avg': 0, 'M2': 0.0, 'min': -1, 'max': -1, \
+                                    'variance': -1, 'std_dev': 0.0, 'sum_time': 0}
 
         # get the task_instances that have completed since statistics were last calculated
         task_instances = TaskInstance.objects.filter(task_key=task_key).exclude(completed=None)[self._task_stat_indices[task_key]:]
