@@ -40,8 +40,7 @@ class StatisticsModule(Module):
 
         self._task_stat_data = {}
         self._task_stat_indices = {}
-        self._workunit_stat_data = {}
-        self._workunit_stat_indices = {}
+        self._subtask_stat_data = {}
         self._total_time = 0.0 #in seconds
 
     def _register(self, manager):
@@ -74,8 +73,12 @@ class StatisticsModule(Module):
             if not self.get_task_stats(task_key[0]):
                 self.task_stats(task_key[0])
 
-            # print stats
+            # print task stats
             logger.info("%s stats: %s" % (task_key[0], self.get_task_stats(task_key[0])))
+
+        for subtask_key, subtask_stats in self._subtask_stat_data.items():
+            # print subtask stats
+            logger.info("%s subtask stats: %s" % (subtask_key, subtask_stats))
 
         # call later to recheck for new tasks
         reactor.callLater(10, self.calc_all_tasks)
@@ -107,10 +110,8 @@ class StatisticsModule(Module):
             stats = self._task_stat_data[task_key]
         except KeyError:
             self._task_stat_indices[task_key] = 0
-            stats = self._task_stat_data[task_key] = {'num_completed': 0, 'avg': 0, 'M2': 0.0, 'min': -1, 'max': -1, \
-                                                        'variance': -1, 'std_dev': 0.0, 'sum_time': 0, 'workunits': {}}
-            stats['workunits'] = {'num_completed': 0, 'avg': 0, 'M2': 0.0, 'min': -1, 'max': -1, \
-                                    'variance': -1, 'std_dev': 0.0, 'sum_time': 0}
+            stats = self._task_stat_data[task_key] = self.init_stat_dict()
+            stats['workunits'] = self.init_stat_dict()
 
         # get the task_instances that have completed since statistics were last calculated
         task_instances = TaskInstance.objects.filter(task_key=task_key).exclude(completed=None)[self._task_stat_indices[task_key]:]
@@ -141,6 +142,16 @@ class StatisticsModule(Module):
         for work in workunits:
            time_delta = (work['completed'] - work['started']).seconds
            self.tick_stats(time_delta, stats)
+           # while we're looping through unique workunits and have already
+           # retrieved time_delta, calculate subtask stats
+           self.tick_subtask_stats(work, time_delta)
+
+    def tick_subtask_stats(self, work, time_delta):
+        try:
+            stats = self._subtask_stat_data[work['subtask_key']]
+        except KeyError:
+            stats = self._subtask_stat_data[work['subtask_key']] = self.init_stat_dict()
+        self.tick_stats(time_delta, stats)
 
 
     def tick_stats(self, x, stats):
@@ -162,3 +173,7 @@ class StatisticsModule(Module):
         stats['M2'] = stats['M2'] + delta * (x - stats['avg'])
         if stats['num_completed'] - 1:
             stats['variance'] = stats['M2'] / (stats['num_completed'] - 1)
+
+    def init_stat_dict(self):
+        return {'num_completed': 0, 'avg': 0, 'M2': 0.0, 'min': -1, 'max': -1, \
+                    'variance': -1, 'std_dev': 0.0, 'sum_time': 0}
