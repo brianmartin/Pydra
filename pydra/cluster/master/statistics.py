@@ -35,7 +35,9 @@ class StatisticsModule(Module):
         self._interfaces = [
             self.get_task_stats,
             self.get_all_task_stats,
-            self.get_all_task_stats_json_safe,
+            self.get_subtask_stats,
+            self.get_all_subtask_stats,
+            self.get_json_safe,
         ]
 
         self._task_stat_data = {}
@@ -47,21 +49,25 @@ class StatisticsModule(Module):
         Module._register(self, manager)
         reactor.callLater(2, self.calc_all_tasks)
 
+
+    # convenience accessor functions
+    # {
     def get_task_stats(self, task_key):
-        """
-        Returns task statistics given the task key.
-        """
-        try:
-            return self._task_stat_data[task_key]
-        except KeyError:
-            return {}
+        return self._task_stat_data[task_key] if task_key in self._task_stat_data else {}
 
     def get_all_task_stats(self):
         return self._task_stat_data
 
-    def get_all_task_stats_json_safe(self):
+    def get_subtask_stats(self, subtask_key):
+        return self._subtask_stat_data[subtask_key] if subtask_key in self._subtask_stat_data else {}
+
+    def get_all_subtask_stats(self):
+        return self._subtask_stat_data
+
+    def get_json_safe(self):
         return [{'id':k, 'percentage': (v['num_completed'] * v['avg']) / self._total_time}\
                     for k,v in self._task_stat_data.items()]
+    # }
 
     def calc_all_tasks(self):
         """
@@ -105,21 +111,21 @@ class StatisticsModule(Module):
         If found, it updates statistics using tick_stats.
         """
         # if it's a new task initialize the index and data
-        try:
-            self._task_stat_indices[task_key]
-            stats = self._task_stat_data[task_key]
-        except KeyError:
+        if not task_key in self._task_stat_indices:
             self._task_stat_indices[task_key] = 0
-            stats = self._task_stat_data[task_key] = self.init_stat_dict()
-            stats['workunits'] = self.init_stat_dict()
+            self._task_stat_data[task_key] = self.init_stat_dict()
+
+        index = self._task_stat_indices[task_key] 
+        stats = self._task_stat_data[task_key]
+        stats.setdefault('workunits', self.init_stat_dict())
 
         # get the task_instances that have completed since statistics were last calculated
-        task_instances = TaskInstance.objects.filter(task_key=task_key).exclude(completed=None)[self._task_stat_indices[task_key]:]
+        task_instances = TaskInstance.objects.filter(task_key=task_key).exclude(completed=None)[index:]
 
         #if new instances of the task exist
         if task_instances:
             # keep track of where we left off
-            self._task_stat_indices[task_key] += task_instances.count()
+            index += task_instances.count()
             for task_instance in task_instances:
                 time_delta = (task_instance.completed - task_instance.started).seconds
                 self.tick_stats(time_delta, stats)
@@ -144,13 +150,15 @@ class StatisticsModule(Module):
            self.tick_stats(time_delta, stats)
            # while we're looping through unique workunits and have already
            # retrieved time_delta, calculate subtask stats
-           self.tick_subtask_stats(work, time_delta)
+           self.subtask_stats(work, time_delta)
 
-    def tick_subtask_stats(self, work, time_delta):
-        try:
-            stats = self._subtask_stat_data[work['subtask_key']]
-        except KeyError:
-            stats = self._subtask_stat_data[work['subtask_key']] = self.init_stat_dict()
+
+    def subtask_stats(self, work, time_delta):
+        """
+        Given a WorkUnit, tick subtask stats of the related subtask_key
+        """
+        stats = self._subtask_stat_data[work['subtask_key']] if work['subtask_key'] in self._subtask_stat_data\
+                                                            else self.init_stat_dict()
         self.tick_stats(time_delta, stats)
 
 
