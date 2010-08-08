@@ -117,7 +117,7 @@ class StatisticsModule(Module):
 
         index = self._task_stat_indices[task_key] 
         stats = self._task_stat_data[task_key]
-        stats.setdefault('workunits', self.init_stat_dict())
+        stats['workers'] = {}
 
         # get the task_instances that have completed since statistics were last calculated
         task_instances = TaskInstance.objects.filter(task_key=task_key).exclude(completed=None)[index:]
@@ -129,7 +129,8 @@ class StatisticsModule(Module):
             for task_instance in task_instances:
                 time_delta = (task_instance.completed - task_instance.started).seconds
                 self.tick_stats(time_delta, stats)
-                self.workunit_stats(task_instance, stats['workunits'])
+                self.subtask_stats(task_instance)
+                self.worker_stats(task_instance.worker, stats['workers'], time_delta)
                 self._total_time += time_delta
             stats['std_dev'] = sqrt(stats['variance']) if stats['variance'] != -1 else -1
 
@@ -140,26 +141,35 @@ class StatisticsModule(Module):
             return False
 
 
-    def workunit_stats(self, task_instance, stats):
+    def subtask_stats(self, task_instance):
         """
-        Calculates statistics of workunits given a TaskInstance.
+        Given a TaskInstance, calculate subtask stats. 
         """
         workunits = task_instance.workunits.values()
-        for work in workunits:
-           time_delta = (work['completed'] - work['started']).seconds
-           self.tick_stats(time_delta, stats)
-           # while we're looping through unique workunits and have already
-           # retrieved time_delta, calculate subtask stats
-           self.subtask_stats(work, time_delta)
+        if workunits:
+            for work in workunits:
+                time_delta = (work['completed'] - work['started']).seconds
+
+                # have we seen this subtask before?
+                if not work['subtask_key'] in self._subtask_stat_data:
+                    self._subtask_stat_data[work['subtask_key']] = self.init_stat_dict()
+                stats = self._subtask_stat_data[work['subtask_key']] 
+
+                self.tick_stats(time_delta, stats)
+
+                # have we seen this worker before?
+                if not 'workers' in stats:
+                    stats['workers'] = {}
+                self.worker_stats(work['worker'], stats['workers'], time_delta)
 
 
-    def subtask_stats(self, work, time_delta):
+    def worker_stats(self, worker_key, stats, time_delta):
         """
-        Given a WorkUnit, tick subtask stats of the related subtask_key
+        Given a TaskInstance include stats by worker.
         """
-        stats = self._subtask_stat_data[work['subtask_key']] if work['subtask_key'] in self._subtask_stat_data\
-                                                            else self.init_stat_dict()
-        self.tick_stats(time_delta, stats)
+        if not worker_key in stats:
+            stats[worker_key] = self.init_stat_dict()
+        self.tick_stats(time_delta, stats[worker_key])
 
 
     def tick_stats(self, x, stats):
@@ -181,6 +191,7 @@ class StatisticsModule(Module):
         stats['M2'] = stats['M2'] + delta * (x - stats['avg'])
         if stats['num_completed'] - 1:
             stats['variance'] = stats['M2'] / (stats['num_completed'] - 1)
+
 
     def init_stat_dict(self):
         return {'num_completed': 0, 'avg': 0, 'M2': 0.0, 'min': -1, 'max': -1, \
