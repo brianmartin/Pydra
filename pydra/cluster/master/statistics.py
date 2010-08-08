@@ -71,7 +71,8 @@ class StatisticsModule(Module):
 
     def calc_all_tasks(self):
         """
-        Checks that stat calculations have been initiated for all unique task_key's.
+        Checks that stat calculations have been initiated for all unique task keys.
+        Also for now they are printed to the log.
         """
         for task_key in set(TaskInstance.objects.values_list('task_key')):
 
@@ -108,7 +109,8 @@ class StatisticsModule(Module):
     def _task_stats(self, task_key):
         """
         Looks for new TaskInstance's associated with task_key.
-        If found, it updates statistics using tick_stats.
+        If found, it updates statistics of the associated task key,
+        subtasks, and workers.
         """
         # if it's a new task initialize the index and data
         if not task_key in self._task_stat_indices:
@@ -132,8 +134,6 @@ class StatisticsModule(Module):
                 self.subtask_stats(task_instance)
                 self.worker_stats(task_instance.worker, stats['workers'], time_delta)
                 self._total_time += time_delta
-            stats['std_dev'] = sqrt(stats['variance']) if stats['variance'] != -1 else -1
-
             return True
 
         # otherwise no new info
@@ -165,7 +165,7 @@ class StatisticsModule(Module):
 
     def worker_stats(self, worker_key, stats, time_delta):
         """
-        Given a TaskInstance include stats by worker.
+        Given a TaskInstance, calculate stats by worker.
         """
         if not worker_key in stats:
             stats[worker_key] = self.init_stat_dict()
@@ -191,8 +191,12 @@ class StatisticsModule(Module):
         stats['M2'] = stats['M2'] + delta * (x - stats['avg'])
         if stats['num_completed'] - 1:
             stats['variance'] = stats['M2'] / (stats['num_completed'] - 1)
-
+        # standard deviation
+        stats['stddev'] = sqrt(stats['variance'] if stats['variance'] != -1 else -1
 
     def init_stat_dict(self):
+        """
+        Base statistics measures
+        """
         return {'num_completed': 0, 'avg': 0, 'M2': 0.0, 'min': -1, 'max': -1, \
                     'variance': -1, 'std_dev': 0.0, 'sum_time': 0}
