@@ -192,7 +192,7 @@ class StatisticsModule(Module):
         if stats['num_completed'] - 1:
             stats['variance'] = stats['M2'] / (stats['num_completed'] - 1)
         # standard deviation
-        stats['stddev'] = sqrt(stats['variance'] if stats['variance'] != -1 else -1
+        stats['stddev'] = sqrt(stats['variance']) if stats['variance'] != -1 else -1
 
     def init_stat_dict(self):
         """
