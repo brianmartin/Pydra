@@ -481,6 +481,9 @@ class TaskScheduler(Module):
                         # notify remote worker to start     
                         worker = self.workers[worker_key]
                         pkg = self.task_manager.get_task_package(task)
+                        # save task version
+                        task_instance.version = pkg.version
+                        task_instance.save()
                         main_worker = task_instance.worker if task_instance.worker else worker_key
                         d = worker.remote.callRemote('run_task', task, pkg.version,
                                 job.args, job.transmitable(), main_worker,
