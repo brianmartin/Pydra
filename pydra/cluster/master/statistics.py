@@ -116,23 +116,24 @@ class StatisticsModule(Module):
         if not task_key in self._task_stat_indices:
             self._task_stat_indices[task_key] = 0
             self._task_stat_data[task_key] = self.init_stat_dict()
+            self._task_stat_data[task_key]['workers'] = {}
+            self._task_stat_data[task_key]['versions'] = {}
 
-        index = self._task_stat_indices[task_key] 
         stats = self._task_stat_data[task_key]
-        stats['workers'] = {}
 
         # get the task_instances that have completed since statistics were last calculated
-        task_instances = TaskInstance.objects.filter(task_key=task_key).exclude(completed=None)[index:]
+        task_instances = TaskInstance.objects.filter(task_key=task_key).exclude(completed=None)[self._task_stat_indices[task_key]:]
 
         #if new instances of the task exist
         if task_instances:
             # keep track of where we left off
-            index += task_instances.count()
+            self._task_stat_indices[task_key] += task_instances.count()
             for task_instance in task_instances:
                 time_delta = (task_instance.completed - task_instance.started).seconds
                 self.tick_stats(time_delta, stats)
                 self.subtask_stats(task_instance)
-                self.worker_stats(task_instance.worker, stats['workers'], time_delta)
+                self.breakdown_stats(task_instance.worker, stats['workers'], time_delta)
+                self.breakdown_stats(task_instance.version, stats['versions'], time_delta)
                 self._total_time += time_delta
             return True
 
@@ -163,13 +164,13 @@ class StatisticsModule(Module):
                 self.worker_stats(work['worker'], stats['workers'], time_delta)
 
 
-    def worker_stats(self, worker_key, stats, time_delta):
+    def breakdown_stats(self, key, stats, time_delta):
         """
-        Given a TaskInstance, calculate stats by worker.
+        Given a TaskInstance, calculate stats by key.
         """
-        if not worker_key in stats:
-            stats[worker_key] = self.init_stat_dict()
-        self.tick_stats(time_delta, stats[worker_key])
+        if not key in stats:
+            stats[key] = self.init_stat_dict()
+        self.tick_stats(time_delta, stats[key])
 
 
     def tick_stats(self, x, stats):

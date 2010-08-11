@@ -154,6 +154,7 @@ class TaskInstance(AbstractJob):
     results = None
     objects = TaskInstanceManager()
     workunit = None #not used, included for compatibility with WorkUnit
+    version = models.CharField(max_length=255)
     
     def __init__(self, *eargs, **kw):
         super(TaskInstance, self).__init__(*eargs, **kw) 
