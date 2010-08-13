@@ -33,12 +33,8 @@ class StatisticsModule(Module):
 
     def __init__(self):
         self._interfaces = [
-            self.get_task_stats,
-            self.get_all_task_stats,
-            self.get_subtask_stats,
-            self.get_all_subtask_stats,
-            self.get_avg_task_runtime,
-            self.get_avg_subtask_runtime,
+            self.task_statistics,
+            self.subtask_statistics,
         ]
 
         self._task_stat_data = {}
