@@ -163,32 +163,6 @@ def discover(request):
             pydra_controller.connect()
     return render_to_response('discover.html', {'known_nodes': pydra_controller.list_known_nodes()}, context_instance=c)
 
-
-@user_passes_test(lambda u: u.has_perm('pydra.web.can_edit_nodes'))
-def cloudnodes(request):
-    """
-    TODO: allow users to select service and number of nodes to provision from the cloud
-    NOW: lists available nodes on the user's amazon ec2 account.
-    """
-    global pydra_controller
-
-    return render_to_response('cloud.html', {'nodes':pydra_controller.list_cloudnodes()})
-
-def cloudnode_status(request):
-    """
-    Retrieves Status of cloudnodes
-    """
-    c = RequestContext(request, {
-        'MEDIA_URL': settings.MEDIA_URL
-    }, [pydra_processor])
-
-    try:
-        response = simplejson.dumps(pydra_controller.cloudnode_status())
-    except ControllerException, e:
-        response = e.code
-
-    return HttpResponse(response, mimetype='application/javascript')
-
 @user_passes_test(lambda u: u.has_perm('pydra.web.can_edit_nodes'))
 def cloudnode_delete(request, id=None):
     """
