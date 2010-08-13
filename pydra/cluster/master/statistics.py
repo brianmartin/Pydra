@@ -100,7 +100,6 @@ class StatisticsModule(Module):
             # if this is a new task then start calculating stats
             if not task_key[0] in self._task_stat_data:
                 self.run_task_stats(task_key[0])
-            logger.info(self.task_statistics(task_key='demo.demo_task.TestTask'))
 
         # call later to recheck for new tasks
         reactor.callLater(10, self.calc_all_tasks)
