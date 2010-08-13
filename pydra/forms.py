@@ -38,17 +38,26 @@ class NodeForm(ModelForm):
 
 
 """
-Form used when editing cloudnodes
+Form used when creating cloudnodes
 """
-class CloudNodeForm(NodeForm):
+class CloudNodeCreateForm(NodeForm):
     class Meta:
         model = CloudNode
         exclude=('key', 'seen', 'pub_key', 'priv_key')
 
-    service_provider= forms.CharField(max_length=255)
-    name            = forms.CharField(max_length=255, required=False)
-    instance_size   = forms.CharField(max_length=255, required=False)
-    instance_image  = forms.CharField(max_length=255, required=False)
-    security_group  = forms.CharField(max_length=255, required=False)
+    service_provider= forms.ChoiceField()
+    instance_size   = forms.ChoiceField()
+    name            = forms.CharField(required=False)
+    instance_image  = forms.CharField(required=False)
+    security_group  = forms.CharField(required=False)
     host            = forms.CharField(required=False)
+    sizes           = forms.ChoiceField(required=False)
+
+"""
+Form used for editing cloudnodes
+"""
+class CloudNodeEditForm(CloudNodeCreateForm):
+    service_provider= forms.CharField(required=False)
+    instance_size   = forms.CharField(required=False)
+
 

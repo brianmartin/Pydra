@@ -1,0 +1,56 @@
+{% extends "cloud_create.html" %}
+
+{% block content %}
+    {% if form.errors %}
+        <div id="errors">
+        Please correct the following errors:
+            <ul class="errors">
+            {% for field, msg in form.errors.items %}
+                <li class="error"><strong>{{ field|escape }}</strong>{{msg|escape}}</li>
+            {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    <div id="formContainer">
+        <form id="node" name="node" method="POST" action="{{SITE_ROOT}}/nodes/edit/{{id}}">
+            <table id="auto">
+                <tr >
+                    <td colspan="100%"><b>These fields will be autodetected by the node and reported back.  You may update them if you like.   At some point these fields will be used to intelligently select nodes for work requests</b></td>
+                </td>
+                <tr>
+                  <td class="label">{{form.host.label}}</td>
+                  <td title="Host or IP address of the Node.">{{form.host}}</td>
+                </tr>
+                <tr>
+                  <td class="label">{{form.port.label}}</td>
+                  <td title="Port to connect to the Node on.">{{form.port}}</td>
+                </tr>
+                <tr>
+                    <td class="label">{{form.cores.label}}</td>
+                    <td title="Physical number of cores in the Node">{{form.cores}}</td>
+                </tr>
+                <tr>
+                    <td class="label">{{form.stones.label}}</td>
+                    <td title="Pystone speed rating; bigger is better">{{form.stones}}</td>
+                </tr>
+                <tr>
+                    <td class="label">{{form.total_memory.label}}</td>
+                    <td title="Total system memory in MB">{{form.total_memory}}</td>
+                </tr>
+                <tr>
+                    <td class="label">{{form.avail_memory.label}}</td>
+                    <td title="Available system memory in MB">{{form.avail_memory}}</td>
+                </tr>
+            </table>
+
+            <div id="buttons">
+                <div class="save">Save <div class="icon save"></div></div>
+                <div class="delete">Delete <div class="icon delete"></div></div>
+            </div>
+            
+            </div>
+
+        </form>
+    </div>
+{% endblock %}

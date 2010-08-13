@@ -90,7 +90,7 @@ class Node(models.Model):
 
 class CloudNode(Node):
     name = models.CharField(max_length=255, null=True)
-    service_provider = models.CharField(max_length=255, null=True)
+    service_provider = models.CharField(max_length=255, null=False)
     instance_size = models.CharField(max_length=255, null=True)
     instance_image = models.CharField(max_length=255, null=True)
     #EC2-specific.  Not sure if this should stay around
