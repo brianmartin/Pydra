@@ -32,7 +32,7 @@ from pydra.cluster.controller import ControllerException
 from pydra.cluster.controller.web.controller import WebController
 from pydra.forms import NodeForm
 from pydra.forms import CloudNodeForm
-from pydra.models import Node, TaskInstance
+from pydra.models import Node, CloudNode, TaskInstance
 from pydra.config import load_settings
 
 """
@@ -75,6 +75,11 @@ def nodes(request):
 
     try:
         nodes, pages = pydra_controller.node_list()
+        for node in nodes:
+            if list(CloudNode.objects.filter(id=node['id'])) != []:
+                node['cloudnode'] = True
+            else:
+                node['cloudnode'] = False
     except ControllerException, e:
         response = e.code
         nodes = None
