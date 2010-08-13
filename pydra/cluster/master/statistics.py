@@ -53,11 +53,14 @@ class StatisticsModule(Module):
 
     # convenience accessor functions
     # {
-    def get_task_stats(self, task_key, worker=None, version=None):
+    def task_statistics(self, task_key=None, worker=None, version=None):
         """
         Returns task stats given the task key.  These may be broken down by either
         worker or version (where worker takes precedence)
         """
+        if not task_key:
+            return self._task_stat_data
+
         if task_key in self._task_stat_data:
             stats = self._task_stat_data[task_key]
         else:
@@ -70,17 +73,14 @@ class StatisticsModule(Module):
         else:
             return stats
 
-    def get_all_task_stats(self):
-        """
-        Returns all data concerning tasks (not subtasks)
-        """
-        return self._task_stat_data
-
-    def get_subtask_stats(self, subtask_key):
+    def subtask_statistics(self, subtask_key=None, worker=None, version=None):
         """
         Returns subtask stats given the subtask key.  These may be broken down by 
         either worker or version (where worker takes precedence)
         """
+        if not subtask_key:
+            return self._subtask_stat_data
+
         if subtask_key in self._task_substat_data:
             stats = self._subtask_stat_data[subtask_key]
         else:
@@ -92,34 +92,6 @@ class StatisticsModule(Module):
             return stats['versions'][version]
         else:
             return stats
-
-        return self._subtask_stat_data[subtask_key] if subtask_key in self._subtask_stat_data else {}
-
-    def get_all_subtask_stats(self):
-        """
-        Returns all data concerning subtasks
-        """
-        return self._subtask_stat_data
-
-    def get_avg_task_runtime(self, *args, **kwargs):
-        """
-        Returns average runtime of the task.  This may take worker or version into account.
-        """
-        stats = get_task_stats(*args, **kwargs)
-        if 'avg' in stats:
-            return stats['avg']
-        else:
-            return -1
-
-    def get_avg_subtask_runtime(self, *args, **kwargs):
-        """
-        Returns average runtime of the subtask.  This may take worker or version into account.
-        """
-        stats = get_subtask_stats(*args, **kwargs)
-        if 'avg' in stats:
-            return stats['avg']
-        else:
-            return -1
     # }
 
     def calc_all_tasks(self):
@@ -130,29 +102,30 @@ class StatisticsModule(Module):
         for task_key in set(TaskInstance.objects.values_list('task_key')):
 
             # if this is a new task then start calculating stats
-            if not self.get_task_stats(task_key[0]):
-                self.task_stats(task_key[0])
+            if not task_key[0] in self._task_stat_data:
+                self.run_task_stats(task_key[0])
+            logger.info(self.task_statistics(task_key='demo.demo_task.TestTask'))
 
         # call later to recheck for new tasks
         reactor.callLater(10, self.calc_all_tasks)
 
 
-    def task_stats(self, task_key, delay=3, max_delay=60, backoff=2):
+    def run_task_stats(self, task_key, delay=3, max_delay=60, backoff=2):
         """
         Runs _task_stats repeatedly with delayed rerun
         (time until next rerun increases by a factor of 'backoff')
         """
         # if new info was added, reset delay:
-        if self._task_stats(task_key):
+        if self._run_task_stats(task_key):
             delay = 3
 
         else:
             delay = min(max_delay, delay * backoff)
 
-        reactor.callLater(delay, self.task_stats, task_key, delay=delay)
+        reactor.callLater(delay, self.run_task_stats, task_key, delay=delay)
 
 
-    def _task_stats(self, task_key):
+    def _run_task_stats(self, task_key):
         """
         Looks for new TaskInstance's associated with task_key.
         If found, it updates statistics of the associated task key,
