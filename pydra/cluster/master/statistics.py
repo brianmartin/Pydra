@@ -37,7 +37,8 @@ class StatisticsModule(Module):
             self.get_all_task_stats,
             self.get_subtask_stats,
             self.get_all_subtask_stats,
-            self.get_json_safe,
+            self.get_avg_task_runtime,
+            self.get_avg_subtask_runtime,
         ]
 
         self._task_stat_data = {}
@@ -52,21 +53,73 @@ class StatisticsModule(Module):
 
     # convenience accessor functions
     # {
-    def get_task_stats(self, task_key):
-        return self._task_stat_data[task_key] if task_key in self._task_stat_data else {}
+    def get_task_stats(self, task_key, worker=None, version=None):
+        """
+        Returns task stats given the task key.  These may be broken down by either
+        worker or version (where worker takes precedence)
+        """
+        if task_key in self._task_stat_data:
+            stats = self._task_stat_data[task_key]
+        else:
+            return {}
+
+        if worker and worker in stats['workers']:
+            return stats['workers'][worker]
+        elif version and version in stats['versions']:
+            return stats['versions'][version]
+        else:
+            return stats
 
     def get_all_task_stats(self):
+        """
+        Returns all data concerning tasks (not subtasks)
+        """
         return self._task_stat_data
 
     def get_subtask_stats(self, subtask_key):
+        """
+        Returns subtask stats given the subtask key.  These may be broken down by 
+        either worker or version (where worker takes precedence)
+        """
+        if subtask_key in self._task_substat_data:
+            stats = self._subtask_stat_data[subtask_key]
+        else:
+            return {}
+
+        if worker and worker in stats['workers']:
+            return stats['workers'][worker]
+        elif version and version in stats['versions']:
+            return stats['versions'][version]
+        else:
+            return stats
+
         return self._subtask_stat_data[subtask_key] if subtask_key in self._subtask_stat_data else {}
 
     def get_all_subtask_stats(self):
+        """
+        Returns all data concerning subtasks
+        """
         return self._subtask_stat_data
 
-    def get_json_safe(self):
-        return [{'id':k, 'percentage': (v['num_completed'] * v['avg']) / self._total_time}\
-                    for k,v in self._task_stat_data.items()]
+    def get_avg_task_runtime(self, *args, **kwargs):
+        """
+        Returns average runtime of the task.  This may take worker or version into account.
+        """
+        stats = get_task_stats(*args, **kwargs)
+        if 'avg' in stats:
+            return stats['avg']
+        else:
+            return -1
+
+    def get_avg_subtask_runtime(self, *args, **kwargs):
+        """
+        Returns average runtime of the subtask.  This may take worker or version into account.
+        """
+        stats = get_subtask_stats(*args, **kwargs)
+        if 'avg' in stats:
+            return stats['avg']
+        else:
+            return -1
     # }
 
     def calc_all_tasks(self):
@@ -79,13 +132,6 @@ class StatisticsModule(Module):
             # if this is a new task then start calculating stats
             if not self.get_task_stats(task_key[0]):
                 self.task_stats(task_key[0])
-
-            # print task stats
-            logger.info("%s stats: %s" % (task_key[0], self.get_task_stats(task_key[0])))
-
-        for subtask_key, subtask_stats in self._subtask_stat_data.items():
-            # print subtask stats
-            logger.info("%s subtask stats: %s" % (subtask_key, subtask_stats))
 
         # call later to recheck for new tasks
         reactor.callLater(10, self.calc_all_tasks)
@@ -193,7 +239,7 @@ class StatisticsModule(Module):
         if stats['num_completed'] - 1:
             stats['variance'] = stats['M2'] / (stats['num_completed'] - 1)
         # standard deviation
-        stats['stddev'] = sqrt(stats['variance']) if stats['variance'] != -1 else -1
+        stats['std_dev'] = sqrt(stats['variance']) if stats['variance'] != -1 else -1
 
     def init_stat_dict(self):
         """
