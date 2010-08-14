@@ -22,7 +22,7 @@ from datetime import datetime
 from math import sqrt
 
 from pydra.cluster.module import Module
-from pydra.models import TaskInstance, WorkUnit
+from pydra.models import TaskInstance, WorkUnit, Statistics
 import pydra_settings
 
 # init logging
@@ -37,10 +37,11 @@ class StatisticsModule(Module):
             self.subtask_statistics,
         ]
 
-        self._task_stat_data = {}
-        self._task_stat_indices = {}
-        self._subtask_stat_data = {}
-        self._total_time = 0.0 #in seconds
+        if not Statistics.objects.all():
+            self._db_obj = Statistics()
+        else:
+            self._db_obj = Statistics.objects.all()[0]
+        self._db = self._db_obj.get_data()
 
     def _register(self, manager):
         Module._register(self, manager)
@@ -55,10 +56,10 @@ class StatisticsModule(Module):
         worker or version (where worker takes precedence)
         """
         if not task_key:
-            return self._task_stat_data
+            return self._db['task']
 
-        if task_key in self._task_stat_data:
-            stats = self._task_stat_data[task_key]
+        if task_key in self._db['task']:
+            stats = self._db['task'][task_key]
         else:
             return {}
 
@@ -75,10 +76,10 @@ class StatisticsModule(Module):
         either worker or version (where worker takes precedence)
         """
         if not subtask_key:
-            return self._subtask_stat_data
+            return self._db['subtask']
 
-        if subtask_key in self._task_substat_data:
-            stats = self._subtask_stat_data[subtask_key]
+        if subtask_key in self._db['subtask']:
+            stats = self._db['subtask'][subtask_key]
         else:
             return {}
 
@@ -98,8 +99,10 @@ class StatisticsModule(Module):
         for task_key in set(TaskInstance.objects.values_list('task_key')):
 
             # if this is a new task then start calculating stats
-            if not task_key[0] in self._task_stat_data:
+            if not task_key[0] in self._db['task']:
                 self.run_task_stats(task_key[0])
+
+        self._db_obj.save_data(self._db)
 
         # call later to recheck for new tasks
         reactor.callLater(10, self.calc_all_tasks)
@@ -127,28 +130,27 @@ class StatisticsModule(Module):
         subtasks, and workers.
         """
         # if it's a new task initialize the index and data
-        if not task_key in self._task_stat_indices:
-            self._task_stat_indices[task_key] = 0
-            self._task_stat_data[task_key] = self.init_stat_dict()
-            self._task_stat_data[task_key]['workers'] = {}
-            self._task_stat_data[task_key]['versions'] = {}
+        if not task_key in self._db['indices']:
+            self._db['indices'][task_key] = 0
+            self._db['task'][task_key] = self.init_stat_dict()
+            self._db['task'][task_key]['workers'] = {}
+            self._db['task'][task_key]['versions'] = {}
 
-        stats = self._task_stat_data[task_key]
+        stats = self._db['task'][task_key]
 
         # get the task_instances that have completed since statistics were last calculated
-        task_instances = TaskInstance.objects.filter(task_key=task_key).exclude(completed=None)[self._task_stat_indices[task_key]:]
+        task_instances = TaskInstance.objects.filter(task_key=task_key).exclude(completed=None)[self._db['indices'][task_key]:]
 
         #if new instances of the task exist
         if task_instances:
             # keep track of where we left off
-            self._task_stat_indices[task_key] += task_instances.count()
+            self._db['indices'][task_key] += task_instances.count()
             for task_instance in task_instances:
                 time_delta = (task_instance.completed - task_instance.started).seconds
                 self.tick_stats(time_delta, stats)
                 self.subtask_stats(task_instance)
                 self.breakdown_stats(task_instance.worker, stats['workers'], time_delta)
                 self.breakdown_stats(task_instance.version, stats['versions'], time_delta)
-                self._total_time += time_delta
             return True
 
         # otherwise no new info
@@ -166,9 +168,9 @@ class StatisticsModule(Module):
                 time_delta = (work['completed'] - work['started']).seconds
 
                 # have we seen this subtask before?
-                if not work['subtask_key'] in self._subtask_stat_data:
-                    self._subtask_stat_data[work['subtask_key']] = self.init_stat_dict()
-                stats = self._subtask_stat_data[work['subtask_key']] 
+                if not work['subtask_key'] in self._db['subtask']:
+                    self._db['subtask'][work['subtask_key']] = self.init_stat_dict()
+                stats = self._db['subtask'][work['subtask_key']]
 
                 self.tick_stats(time_delta, stats)
 

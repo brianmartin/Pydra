@@ -428,3 +428,17 @@ class Batch(AbstractJob):
     
     def transmitable(self):
         return self._transmitable
+
+class Statistics(models.Model):
+    """
+    Saves stats that have been calculated already.
+    """
+
+    data_json = models.TextField(default='{"indices": {}, "subtask": {}, "task": {}}')
+
+    def save_data(self, d):
+        self.data_json = simplejson.dumps(d)
+        self.save()
+
+    def get_data(self):
+        return simplejson.loads(self.data_json)
