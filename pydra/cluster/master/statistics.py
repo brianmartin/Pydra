@@ -100,7 +100,7 @@ class StatisticsModule(Module):
         Checks that stat calculations have been initiated for all unique task keys.
         Also for now they are printed to the log.
         """
-        for task_key in set(TaskInstance.objects.values_list('task_key')):
+        for task_key in TaskInstance.objects.values_list('task_key').distinct():
 
             # if this is a new task then start calculating stats
             if not task_key[0] in self._db['task']:
