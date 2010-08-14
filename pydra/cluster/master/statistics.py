@@ -37,16 +37,20 @@ class StatisticsModule(Module):
             self.subtask_statistics,
         ]
 
+        self._listeners = {'MANAGER_INIT':self.initialize}
+
+
+    def initialize(self):
+        self.retrieve_data()
+        self.calc_all_tasks()
+
+
+    def retrieve_data(self):
         if not Statistics.objects.all():
             self._db_obj = Statistics()
         else:
             self._db_obj = Statistics.objects.all()[0]
         self._db = self._db_obj.get_data()
-
-    def _register(self, manager):
-        Module._register(self, manager)
-        reactor.callLater(2, self.calc_all_tasks)
-
 
     # convenience accessor functions
     # {
