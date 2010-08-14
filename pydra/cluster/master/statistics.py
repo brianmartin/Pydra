@@ -52,37 +52,17 @@ class StatisticsModule(Module):
             self._db_obj = Statistics.objects.all()[0]
         self._db = self._db_obj.get_data()
 
-    # convenience accessor functions
-    # {
-    def task_statistics(self, task_key=None, worker=None, version=None):
+
+    def task_statistics(self, task_key=None, subtask_key=None, worker=None, version=None):
         """
         Returns task stats given the task key.  These may be broken down by either
         worker or version (where worker takes precedence)
         """
-        if not task_key:
+        if not task_key and not subtask_key:
             return self._db['task']
-
-        if task_key in self._db['task']:
+        elif task_key in self._db['task']:
             stats = self._db['task'][task_key]
-        else:
-            return {}
-
-        if worker and worker in stats['workers']:
-            return stats['workers'][worker]
-        elif version and version in stats['versions']:
-            return stats['versions'][version]
-        else:
-            return stats
-
-    def subtask_statistics(self, subtask_key=None, worker=None, version=None):
-        """
-        Returns subtask stats given the subtask key.  These may be broken down by 
-        either worker or version (where worker takes precedence)
-        """
-        if not subtask_key:
-            return self._db['subtask']
-
-        if subtask_key in self._db['subtask']:
+        elif subtask_key in self._db['subtask']:
             stats = self._db['subtask'][subtask_key]
         else:
             return {}
@@ -93,7 +73,7 @@ class StatisticsModule(Module):
             return stats['versions'][version]
         else:
             return stats
-    # }
+
 
     def update_all(self):
         """
