@@ -434,7 +434,7 @@ class Statistics(models.Model):
     Saves stats that have been calculated already.
     """
 
-    data_json = models.TextField(default='{"indices": {}, "subtask": {}, "task": {}}')
+    data_json = models.TextField(default='{"index": 0, "subtask": {}, "task": {}}')
 
     def save_data(self, d):
         self.data_json = simplejson.dumps(d)

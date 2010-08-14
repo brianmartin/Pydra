@@ -232,6 +232,7 @@ class TaskScheduler(Module):
                     status = STATUS_COMPLETE if task_status is None else task_status
                     task_instance.status = status
                     task_instance.completed = datetime.now()
+                    self.emit('TASK_FINISHED', task_instance)
                     task_instance.save()
                     
                     with self._worker_lock:

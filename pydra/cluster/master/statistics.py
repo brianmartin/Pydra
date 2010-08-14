@@ -37,13 +37,13 @@ class StatisticsModule(Module):
             self.subtask_statistics,
         ]
 
-        self._listeners = {'MANAGER_INIT':self.initialize}
+        self._listeners = {'MANAGER_INIT':self.initialize,
+                           'TASK_FINISHED':self.update}
 
 
     def initialize(self):
         self.retrieve_data()
-        self.calc_all_tasks()
-
+        self.update_all()
 
     def retrieve_data(self):
         if not Statistics.objects.all():
@@ -95,71 +95,41 @@ class StatisticsModule(Module):
             return stats
     # }
 
-    def calc_all_tasks(self):
+    def update_all(self):
         """
-        Checks that stat calculations have been initiated for all unique task keys.
-        Also for now they are printed to the log.
+        Updates all unaccounted for completed TaskInstance's.
         """
-        for task_key in TaskInstance.objects.values_list('task_key').distinct():
-
-            # if this is a new task then start calculating stats
-            if not task_key[0] in self._db['task']:
-                self.run_task_stats(task_key[0])
-
-        self._db_obj.save_data(self._db)
-
-        # call later to recheck for new tasks
-        reactor.callLater(10, self.calc_all_tasks)
+        task_instances = TaskInstance.objects.exclude(completed=None)[self._db['index']:]
+        for task_instance in task_instances:
+            self.update(task_instance)
 
 
-    def run_task_stats(self, task_key, delay=3, max_delay=60, backoff=2):
+    def update(self, task_instance):
         """
-        Runs _task_stats repeatedly with delayed rerun
-        (time until next rerun increases by a factor of 'backoff')
-        """
-        # if new info was added, reset delay:
-        if self._run_task_stats(task_key):
-            delay = 3
-
-        else:
-            delay = min(max_delay, delay * backoff)
-
-        reactor.callLater(delay, self.run_task_stats, task_key, delay=delay)
-
-
-    def _run_task_stats(self, task_key):
-        """
-        Looks for new TaskInstance's associated with task_key.
+        Looks for new TaskInstance's.
         If found, it updates statistics of the associated task key,
         subtasks, and workers.
         """
+        task_key = task_instance.task_key
+
         # if it's a new task initialize the index and data
-        if not task_key in self._db['indices']:
-            self._db['indices'][task_key] = 0
+        if not task_key in self._db['task']:
             self._db['task'][task_key] = self.init_stat_dict()
             self._db['task'][task_key]['workers'] = {}
             self._db['task'][task_key]['versions'] = {}
 
         stats = self._db['task'][task_key]
 
-        # get the task_instances that have completed since statistics were last calculated
-        task_instances = TaskInstance.objects.filter(task_key=task_key).exclude(completed=None)[self._db['indices'][task_key]:]
+        time_delta = (task_instance.completed - task_instance.started).seconds
+        self.tick_stats(time_delta, stats)
+        self.subtask_stats(task_instance)
+        self.breakdown_stats(task_instance.worker, stats['workers'], time_delta)
+        self.breakdown_stats(task_instance.version, stats['versions'], time_delta)
 
-        #if new instances of the task exist
-        if task_instances:
-            # keep track of where we left off
-            self._db['indices'][task_key] += task_instances.count()
-            for task_instance in task_instances:
-                time_delta = (task_instance.completed - task_instance.started).seconds
-                self.tick_stats(time_delta, stats)
-                self.subtask_stats(task_instance)
-                self.breakdown_stats(task_instance.worker, stats['workers'], time_delta)
-                self.breakdown_stats(task_instance.version, stats['versions'], time_delta)
-            return True
+        # keep track of where we left off
+        self._db['index'] += 1
 
-        # otherwise no new info
-        else:
-            return False
+        self._db_obj.save_data(self._db)
 
 
     def subtask_stats(self, task_instance):
