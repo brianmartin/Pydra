@@ -174,6 +174,7 @@ class TaskInstance(AbstractJob):
     objects = TaskInstanceManager()
     workunit = None #not used, included for compatibility with WorkUnit
     version = models.CharField(max_length=255)
+    statistics_calculated = models.BooleanField(default=False)
     
     def __init__(self, *eargs, **kw):
         super(TaskInstance, self).__init__(*eargs, **kw) 
@@ -434,7 +435,8 @@ class Statistics(models.Model):
     Saves stats that have been calculated already.
     """
 
-    data_json = models.TextField(default='{"index": 0, "subtask": {}, "task": {}}')
+    task_key = models.CharField(max_length=255)
+    data_json = models.TextField(default='{"subtask": {}, "task": {}}')
 
     def save_data(self, d):
         self.data_json = simplejson.dumps(d)

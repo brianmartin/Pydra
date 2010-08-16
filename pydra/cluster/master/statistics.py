@@ -34,85 +34,66 @@ class StatisticsModule(Module):
     def __init__(self):
         self._interfaces = [
             self.task_statistics,
-            self.subtask_statistics,
         ]
 
-        self._listeners = {'MANAGER_INIT':self.initialize,
+        self._listeners = {'MANAGER_INIT':self.update_all,
                            'TASK_FINISHED':self.update}
 
 
-    def initialize(self):
-        self.retrieve_data()
-        self.update_all()
-
-    def retrieve_data(self):
-        if not Statistics.objects.all():
-            self._db_obj = Statistics()
-        else:
-            self._db_obj = Statistics.objects.all()[0]
-        self._db = self._db_obj.get_data()
-
-
-    def task_statistics(self, task_key=None, subtask_key=None, worker=None, version=None):
+    def task_statistics(self, task_key):
         """
-        Returns task stats given the task key.  These may be broken down by either
-        worker or version (where worker takes precedence)
+        Returns task stats given the task key.  These are broken down by 
+        worker and version 
         """
-        if not task_key and not subtask_key:
-            return self._db['task']
-        elif task_key in self._db['task']:
-            stats = self._db['task'][task_key]
-        elif subtask_key in self._db['subtask']:
-            stats = self._db['subtask'][subtask_key]
+        if task_key:
+            stats_query = Statistics.objects.filter(task_key=task_key)
+            if stats_query:
+                return stats_query[0].get_data()
         else:
             return {}
-
-        if worker and worker in stats['workers']:
-            return stats['workers'][worker]
-        elif version and version in stats['versions']:
-            return stats['versions'][version]
-        else:
-            return stats
 
 
     def update_all(self):
         """
         Updates all unaccounted for completed TaskInstance's.
         """
-        task_instances = TaskInstance.objects.exclude(completed=None)[self._db['index']:]
+        task_instances = TaskInstance.objects.filter(statistics_calculated=False).exclude(completed=None)
         for task_instance in task_instances:
             self.update(task_instance)
 
 
     def update(self, task_instance):
         """
-        Looks for new TaskInstance's.
-        If found, it updates statistics of the associated task key,
+        Updates statistics of the associated task key,
         subtasks, and workers.
         """
         task_key = task_instance.task_key
 
-        # if it's a new task initialize the index and data
-        if not task_key in self._db['task']:
-            self._db['task'][task_key] = self.init_stat_dict()
-            self._db['task'][task_key]['workers'] = {}
-            self._db['task'][task_key]['versions'] = {}
+        # retrieve stats dictionary
+        stats_query = Statistics.objects.filter(task_key=task_key)
+        if stats_query:
+            stats_obj = stats_query[0]
+            stats = stats_query[0].get_data()
 
-        stats = self._db['task'][task_key]
+        else:
+            stats_obj = Statistics(task_key=task_key)
+            stats = {'task': self.init_stat_dict(), 'subtask': {}}
+            stats['task']['workers'] = {}
+            stats['task']['versions'] = {}
+
 
         time_delta = (task_instance.completed - task_instance.started).seconds
-        self.tick_stats(time_delta, stats)
-        self.subtask_stats(task_instance)
-        self.breakdown_stats(task_instance.worker, stats['workers'], time_delta)
-        self.breakdown_stats(task_instance.version, stats['versions'], time_delta)
+        self.tick_stats(time_delta, stats['task'])
+        self.subtask_stats(task_instance, stats['subtask'])
+        self.breakdown_stats(task_instance.worker, stats['task']['workers'], time_delta)
+        self.breakdown_stats(task_instance.version, stats['task']['versions'], time_delta)
 
-        # keep track of where we left off
-        self._db['index'] += 1
+        task_instance.statistics_calculated = True
+        task_instance.save()
+        stats_obj.save_data(stats)
 
-        self._db_obj.save_data(self._db)
 
-
-    def subtask_stats(self, task_instance):
+    def subtask_stats(self, task_instance, stats):
         """
         Given a TaskInstance, calculate subtask stats. 
         """
@@ -120,18 +101,18 @@ class StatisticsModule(Module):
         if workunits:
             for work in workunits:
                 time_delta = (work['completed'] - work['started']).seconds
+                key = work['subtask_key']
 
                 # have we seen this subtask before?
-                if not work['subtask_key'] in self._db['subtask']:
-                    self._db['subtask'][work['subtask_key']] = self.init_stat_dict()
-                stats = self._db['subtask'][work['subtask_key']]
+                if not key in stats:
+                    stats[key] = self.init_stat_dict()
 
-                self.tick_stats(time_delta, stats)
+                self.tick_stats(time_delta, stats[key])
 
                 # have we seen this worker before?
-                if not 'workers' in stats:
-                    stats['workers'] = {}
-                self.worker_stats(work['worker'], stats['workers'], time_delta)
+                if not 'workers' in stats[key]:
+                    stats[key]['workers'] = {}
+                self.breakdown_stats(work.worker, stats[key]['workers'], time_delta)
 
 
     def breakdown_stats(self, key, stats, time_delta):
